@@ -1,0 +1,7 @@
+node_modules/
+dist/
+app/database/app.db
+nul
+*.log
+.DS_Store
+Thumbs.db

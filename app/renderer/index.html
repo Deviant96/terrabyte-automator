@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terrabyte Automator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: '#0f1117',
+            panel: '#161b27',
+            card: '#1c2333',
+            border: '#2a3344',
+            accent: '#6366f1',
+            'accent-hover': '#818cf8',
+            muted: '#64748b',
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#ef4444'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body class="bg-surface text-slate-100 font-sans antialiased select-none overflow-hidden h-screen flex flex-col">
+
+  <!-- Custom Title Bar -->
+  <div id="titlebar" class="flex items-center justify-between px-4 h-10 bg-panel border-b border-border flex-shrink-0" style="-webkit-app-region: drag;">
+    <div class="flex items-center gap-2">
+      <div class="w-5 h-5 rounded bg-accent flex items-center justify-center">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M6 1L11 10H1L6 1Z" fill="white"/>
+        </svg>
+      </div>
+      <span class="text-xs font-semibold text-slate-300 tracking-wide">TERRABYTE AUTOMATOR</span>
+    </div>
+    <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
+      <button onclick="window.api.windowMinimize()" class="titlebar-btn hover:bg-border">
+        <svg width="10" height="2" viewBox="0 0 10 2" fill="currentColor"><rect width="10" height="2"/></svg>
+      </button>
+      <button onclick="window.api.windowMaximize()" class="titlebar-btn hover:bg-border">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="8" height="8"/></svg>
+      </button>
+      <button onclick="window.api.windowClose()" class="titlebar-btn hover:bg-danger">
+        <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-56 bg-panel border-r border-border flex flex-col flex-shrink-0">
+      <nav class="flex-1 py-6 px-3 space-y-1">
+        <a href="#" class="nav-item active" data-screen="dashboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item" data-screen="history">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </a>
+      </nav>
+      <div class="px-3 pb-6">
+        <a href="#" class="nav-item text-muted" data-screen="settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.41 1.41L18.36 8.5a7 7 0 0 0-1-1L19.07 4.93zM4.93 4.93L7.64 7.64a7 7 0 0 0-1 1L4.52 6.34A10 10 0 0 1 4.93 4.93zM20.49 17.66l-2.12-2.12a7 7 0 0 0 .63-1.54h3a10 10 0 0 1-1.51 3.66zM3.51 17.66a10 10 0 0 1-1.51-3.66h3a7 7 0 0 0 .63 1.54l-2.12 2.12zM19.07 19.07a10 10 0 0 1-1.41 1.41L15.5 18.36a7 7 0 0 0 1-1l2.57 1.71zM7.64 16.36a7 7 0 0 0 1 1l-2.12 2.12a10 10 0 0 1-1.41-1.41L7.64 16.36zM14 21.49V18.5a7 7 0 0 1-2 0v3a10 10 0 0 0 2-.01zM10 2.51V5.5a7 7 0 0 1 2 0V2.51a10 10 0 0 0-2 0z"/></svg>
+          Settings
+        </a>
+      </div>
+    </aside>
+
+    <!-- Content Area -->
+    <main class="flex-1 overflow-hidden relative">
+
+      <!-- Toast Container -->
+      <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+      <!-- Dashboard Screen -->
+      <section id="screen-dashboard" class="screen active h-full overflow-y-auto px-8 py-8">
+        <div class="max-w-5xl mx-auto space-y-6 animate-fadein">
+
+          <!-- Header -->
+          <div class="mb-2">
+            <h1 class="text-2xl font-bold text-white">AI Request Dashboard</h1>
+            <p class="text-muted text-sm mt-1">Submit AI marketing requests and track their status.</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Request Form -->
+            <div class="card space-y-5">
+              <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">New Request</h2>
+
+              <div class="space-y-4">
+                <!-- Prompt -->
+                <div>
+                  <label class="field-label">Prompt <span class="text-danger">*</span><span class="hint-icon" data-hint="Describe your AI marketing request in detail. Include tone, target audience, content goals, and any specific requirements.">?</span></label>
+                  <div class="prompt-wrap">
+                    <textarea id="field-prompt" rows="5"
+                      class="field-input resize-none prompt-textarea"
+                      placeholder="Describe your AI marketing request in detail..."></textarea>
+                    <div class="prompt-actions">
+                      <button id="btn-prompt-clear" class="prompt-action-btn" title="Clear">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Clear
+                      </button>
+                      <button id="btn-prompt-copy" class="prompt-action-btn" title="Copy">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        Copy
+                      </button>
+                      <button id="btn-prompt-paste" class="prompt-action-btn" title="Paste">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                        Paste
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Platform -->
+                <div>
+                  <label class="field-label">Platform<span class="hint-icon" data-hint="Choose the target platform for this content. The AI will tailor tone, format, and length accordingly.">?</span></label>
+                  <select id="field-platform" class="field-input">
+                    <option value="">— Select Platform —</option>
+                    <option>Instagram</option>
+                    <option>Facebook</option>
+                    <option>Twitter / X</option>
+                    <option>LinkedIn</option>
+                    <option>TikTok</option>
+                    <option>YouTube</option>
+                    <option>Email</option>
+                    <option>Blog</option>
+                    <option>Google Ads</option>
+                    <option>General</option>
+                  </select>
+                </div>
+
+                <!-- Keyword -->
+                <div>
+                  <label class="field-label">Keyword / Tag<span class="hint-icon" data-hint="Add relevant keywords or campaign tags to guide the AI context. E.g. 'summer sale', 'product launch', 'brand awareness'.">?</span></label>
+                  <input id="field-keyword" type="text" class="field-input" placeholder="e.g. summer campaign, product launch..." />
+                </div>
+
+                <!-- Row: Urgent + Schedule -->
+                <div class="flex gap-4">
+                  <div class="flex-1">
+                    <label class="field-label">Schedule Date &amp; Time<span class="hint-icon" data-hint="Optional. Set a future date and time for this request. Leave blank to process immediately.">?</span></label>
+                    <div class="datetime-wrap">
+                      <svg class="datetime-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      <input id="field-schedule" type="text" class="field-input datetime-input" placeholder="Pick date &amp; time..." readonly />
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <label class="field-label">Urgent<span class="hint-icon" data-hint="Flag this request as high priority. Your n8n workflow can use this to route urgent tasks differently.">?</span></label>
+                    <div class="flex items-center h-10">
+                      <button id="toggle-urgent" class="toggle-btn" role="switch" aria-checked="false">
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit -->
+              <button id="btn-submit" class="btn-primary w-full">
+                <span id="btn-submit-text">Submit Request</span>
+                <span id="btn-submit-spinner" class="hidden ml-2">
+                  <svg class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40" stroke-dashoffset="10"/></svg>
+                </span>
+              </button>
+            </div>
+
+            <!-- Status + Output -->
+            <div class="space-y-4">
+
+              <!-- Status Card -->
+              <div class="card space-y-3" id="status-card">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">Current Status</h2>
+                <div id="status-empty" class="text-muted text-sm">No active request.</div>
+                <div id="status-content" class="hidden space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-muted">Request ID</span>
+                    <span id="status-request-id" class="text-xs font-mono text-accent"></span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-muted">State</span>
+                    <span id="status-badge" class="status-badge"></span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-muted">Platform</span>
+                    <span id="status-platform" class="text-xs text-slate-300"></span>
+                  </div>
+                  <div id="status-error-row" class="hidden">
+                    <p class="text-xs text-danger bg-danger/10 px-3 py-2 rounded-lg" id="status-error-msg"></p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- AI Output Card -->
+              <div class="card space-y-3 flex flex-col" style="min-height: 260px;">
+                <div class="flex items-center justify-between">
+                  <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">AI Output</h2>
+                  <div class="flex gap-2">
+                    <button id="btn-copy-output" class="btn-ghost text-xs hidden" title="Copy to clipboard">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      Copy
+                    </button>
+                    <button id="btn-expand-output" class="btn-ghost text-xs hidden" title="Expand">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="output-empty" class="flex-1 flex items-center justify-center text-muted text-sm">Output will appear here.</div>
+                <div id="output-skeleton" class="hidden space-y-2">
+                  <div class="skeleton h-4 w-full rounded"></div>
+                  <div class="skeleton h-4 w-5/6 rounded"></div>
+                  <div class="skeleton h-4 w-4/6 rounded"></div>
+                </div>
+                <div id="output-content" class="hidden prose-custom overflow-y-auto flex-1 animate-fadein"></div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- History Screen -->
+      <section id="screen-history" class="screen hidden h-full overflow-y-auto px-8 py-8">
+        <div class="max-w-5xl mx-auto space-y-6 animate-fadein">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h1 class="text-2xl font-bold text-white">Request History</h1>
+              <p class="text-muted text-sm mt-1">Browse, search, and replay previous AI requests.</p>
+            </div>
+            <button id="btn-export-history" class="btn-ghost text-xs">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+          </div>
+
+          <!-- Filters -->
+          <div class="flex gap-3 flex-wrap">
+            <input id="history-search" type="text" placeholder="Search prompts..." class="field-input w-64 text-sm" />
+            <select id="history-filter-status" class="field-input w-40 text-sm">
+              <option value="">All Status</option>
+              <option>Pending</option>
+              <option>Processing</option>
+              <option>Completed</option>
+              <option>Error</option>
+            </select>
+            <select id="history-sort" class="field-input w-44 text-sm">
+              <option value="desc">Newest First</option>
+              <option value="asc">Oldest First</option>
+            </select>
+          </div>
+
+          <!-- History List -->
+          <div id="history-list" class="space-y-3"></div>
+          <div id="history-empty" class="hidden text-center text-muted py-16 text-sm">No requests found.</div>
+        </div>
+      </section>
+
+      <!-- Settings Screen -->
+      <section id="screen-settings" class="screen hidden h-full overflow-y-auto px-8 py-8">
+        <div class="max-w-3xl mx-auto space-y-8 animate-fadein">
+          <div>
+            <h1 class="text-2xl font-bold text-white">Settings</h1>
+            <p class="text-muted text-sm mt-1">Developer configuration. Changes are saved automatically.</p>
+          </div>
+
+          <!-- Webhook -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">Webhook</h2>
+            <div>
+              <label class="field-label">n8n Webhook URL<span class="hint-icon" data-hint="The full URL of your n8n webhook trigger node. Copy it from the 'Webhook' node in your n8n workflow editor.">?</span></label>
+              <input id="cfg-webhook-url" type="url" class="field-input" placeholder="https://your-n8n-instance.com/webhook/..." />
+            </div>
+            <div>
+              <label class="field-label">Webhook Token <span class="text-muted text-xs">(optional)</span><span class="hint-icon" data-hint="A bearer token to authenticate with your n8n webhook. Set this in your n8n workflow's webhook node under 'Authentication'.">?</span></label>
+              <input id="cfg-webhook-token" type="password" class="field-input" placeholder="Bearer token..." />
+            </div>
+            <div>
+              <label class="field-label">Timeout (ms)<span class="hint-icon" data-hint="Maximum milliseconds to wait for n8n to respond before marking the request as failed. Default: 30000 (30 seconds). Range: 1000–120000.">?</span></label>
+              <input id="cfg-webhook-timeout" type="number" class="field-input" placeholder="30000" min="1000" max="120000" />
+            </div>
+            <button id="btn-test-webhook" class="btn-ghost text-sm">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Test Webhook
+            </button>
+          </div>
+
+          <!-- AI -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">AI Settings</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="field-label">Default Provider<span class="hint-icon" data-hint="The AI service your n8n workflow will use. Make sure your n8n workflow is configured for the selected provider.">?</span></label>
+                <select id="cfg-ai-provider" class="field-input">
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="claude">Claude</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Default Model<span class="hint-icon" data-hint="The specific model ID to use. Examples: gpt-4o, gemini-1.5-pro, claude-3-5-sonnet-20241022. Must match what your n8n workflow expects.">?</span></label>
+                <input id="cfg-ai-model" type="text" class="field-input" placeholder="gpt-4o" />
+              </div>
+              <div>
+                <label class="field-label">Temperature<span class="hint-icon" data-hint="Controls AI creativity vs. precision. 0 = deterministic and focused. 0.7 = balanced. 1.5–2 = highly creative but less predictable.">?</span></label>
+                <input id="cfg-temperature" type="number" class="field-input" min="0" max="2" step="0.1" placeholder="0.7" />
+              </div>
+              <div>
+                <label class="field-label">Max Tokens<span class="hint-icon" data-hint="Maximum length of the AI response. 1 token ≈ 0.75 words. 2048 ≈ ~1500 words. Increase for longer content; decrease to save cost.">?</span></label>
+                <input id="cfg-max-tokens" type="number" class="field-input" min="256" max="32000" placeholder="2048" />
+              </div>
+            </div>
+          </div>
+
+          <!-- UI -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">Interface</h2>
+            <div class="space-y-3">
+              <div class="settings-toggle-row">
+                <div>
+                  <p class="text-sm text-slate-300">Dark Mode</p>
+                  <p class="text-xs text-muted">Toggle dark/light interface</p>
+                </div>
+                <button id="cfg-dark-mode" class="toggle-btn" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+              </div>
+              <div class="settings-toggle-row">
+                <div>
+                  <p class="text-sm text-slate-300">Animations</p>
+                  <p class="text-xs text-muted">Enable smooth UI animations</p>
+                </div>
+                <button id="cfg-animations" class="toggle-btn" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+              </div>
+              <div class="settings-toggle-row">
+                <div>
+                  <p class="text-sm text-slate-300">Compact Mode</p>
+                  <p class="text-xs text-muted">Reduce spacing for dense view</p>
+                </div>
+                <button id="cfg-compact" class="toggle-btn" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Database -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">Database</h2>
+            <div class="flex gap-3">
+              <button id="btn-export-db" class="btn-ghost text-sm">Export Logs</button>
+              <button id="btn-clear-history" class="btn-ghost text-sm text-danger border-danger/30 hover:bg-danger/10">Clear All History</button>
+            </div>
+          </div>
+
+          <!-- Debug -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">Debug</h2>
+            <div class="space-y-3">
+              <div class="settings-toggle-row">
+                <div>
+                  <p class="text-sm text-slate-300">Debug Logs</p>
+                  <p class="text-xs text-muted">Write verbose logs</p>
+                </div>
+                <button id="cfg-debug-logs" class="toggle-btn" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+              </div>
+              <div class="settings-toggle-row">
+                <div>
+                  <p class="text-sm text-slate-300">Verbose Mode</p>
+                  <p class="text-xs text-muted">Log full request/response bodies</p>
+                </div>
+                <button id="cfg-verbose" class="toggle-btn" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+              </div>
+            </div>
+          </div>
+
+          <button id="btn-save-settings" class="btn-primary w-full">Save Settings</button>
+        </div>
+      </section>
+
+      <!-- Expand Output Modal -->
+      <div id="modal-expand" class="modal-backdrop hidden">
+        <div class="modal-box">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-white">AI Output</h3>
+            <button id="btn-close-modal" class="btn-ghost text-xs">Close</button>
+          </div>
+          <div id="modal-output-content" class="prose-custom overflow-y-auto" style="max-height:70vh;"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="history.js"></script>
+  <script src="settings.js"></script>
+  <script src="animations.js"></script>
+</body>
+</html>

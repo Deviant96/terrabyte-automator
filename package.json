@@ -1,0 +1,30 @@
+{
+  "name": "terrabyte-automator",
+  "version": "1.0.0",
+  "description": "AI Marketing Dashboard powered by n8n",
+  "main": "app/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.terrabyte.automator",
+    "productName": "Terrabyte Automator",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "app/assets/icons/icon.ico"
+    }
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0",
+    "marked": "^12.0.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
