@@ -1,0 +1,18 @@
+{
+  "webhook_url": "https://your-instance.app.n8n.cloud/webhook-test/your-webhook-id",
+  "webhook_token": "your-token-here",
+  "webhook_timeout": 30000,
+  "ai_provider": "openai",
+  "ai_model": "gpt-4o",
+  "temperature": 0.7,
+  "max_tokens": 2048,
+  "default_article_schedule_time": "",
+  "default_article_schedule_week": "this_week",
+  "default_article_custom_start_date": "",
+  "dark_mode": true,
+  "animations_enabled": true,
+  "compact_mode": true,
+  "database_path": "",
+  "debug_logs": false,
+  "verbose_mode": false
+}
