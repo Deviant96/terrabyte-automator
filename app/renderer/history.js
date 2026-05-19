@@ -10,6 +10,22 @@ const historyFilterStatus = document.getElementById('history-filter-status');
 const historySort = document.getElementById('history-sort');
 const btnExportHistory = document.getElementById('btn-export-history');
 
+function formatScheduleMode(mode) {
+  switch (mode) {
+    case 'next_week':
+      return 'Next week';
+    case 'custom_start_date':
+      return 'Custom start date';
+    default:
+      return 'This week';
+  }
+}
+
+function formatScheduleStartDate(req) {
+  const rawDate = req.article_schedule_start_date || req.schedule_date || '';
+  return rawDate ? new Date(rawDate.replace(' ', 'T')).toLocaleString() : '—';
+}
+
 async function loadHistory() {
   allRequests = await window.api.requestGetAll();
   renderHistory();
@@ -53,6 +69,8 @@ function renderHistory() {
 
     const date = req.created_at ? new Date(req.created_at).toLocaleString() : '';
     const promptSnippet = (req.prompt || '').slice(0, 120) + ((req.prompt || '').length > 120 ? '...' : '');
+    const scheduleMode = formatScheduleMode(req.article_schedule_time || 'this_week');
+    const scheduleStartDate = formatScheduleStartDate(req);
 
     item.innerHTML = `
       <div class="flex items-start justify-between gap-4">
@@ -65,6 +83,10 @@ function renderHistory() {
           </div>
           <p class="text-sm text-slate-300 truncate">${promptSnippet}</p>
           ${req.keyword ? '<p class="text-xs text-muted mt-1"># ' + req.keyword + '</p>' : ''}
+          <div class="mt-2 flex flex-wrap gap-2 text-xs">
+            <span class="schedule-chip">Mode: ${scheduleMode}</span>
+            <span class="schedule-chip">Start: ${scheduleStartDate}</span>
+          </div>
         </div>
         <div class="flex-shrink-0 text-right">
           <p class="text-xs text-muted">${date}</p>

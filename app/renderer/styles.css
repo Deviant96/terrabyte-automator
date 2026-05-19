@@ -130,6 +130,21 @@
   cursor: pointer;
 }
 .datetime-input:read-only { cursor: pointer; }
+.schedule-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+.schedule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(99,102,241,0.10);
+  border: 1px solid rgba(99,102,241,0.18);
+  color: #c7d2fe;
+}
 
 /* ─── Flatpickr Dark Theme Overrides ─────────────────────────────────────── */
 .flatpickr-calendar {

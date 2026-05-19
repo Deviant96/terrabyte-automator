@@ -15,6 +15,8 @@ function applySettingsToForm(cfg) {
   setValue('cfg-ai-model', cfg.ai_model || 'gpt-4o');
   setValue('cfg-temperature', cfg.temperature ?? 0.7);
   setValue('cfg-max-tokens', cfg.max_tokens || 2048);
+  setValue('cfg-default-article-schedule-time', cfg.default_article_schedule_week || 'this_week');
+  setValue('cfg-default-article-custom-start-date', cfg.default_article_custom_start_date || '');
 
   setToggle('cfg-dark-mode', cfg.dark_mode !== false);
   setToggle('cfg-animations', cfg.animations_enabled !== false);
@@ -58,6 +60,9 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     ai_model: document.getElementById('cfg-ai-model').value.trim(),
     temperature: parseFloat(document.getElementById('cfg-temperature').value) || 0.7,
     max_tokens: parseInt(document.getElementById('cfg-max-tokens').value) || 2048,
+    default_article_schedule_time: '',
+    default_article_schedule_week: document.getElementById('cfg-default-article-schedule-time').value,
+    default_article_custom_start_date: document.getElementById('cfg-default-article-custom-start-date').value.trim(),
     dark_mode: getToggle('cfg-dark-mode'),
     animations_enabled: getToggle('cfg-animations'),
     compact_mode: getToggle('cfg-compact'),

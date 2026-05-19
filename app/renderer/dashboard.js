@@ -5,7 +5,7 @@
 let currentRequestId = null;
 let isSubmitting = false;
 let urgentActive = false;
-let schedulePicker = null;
+let customStartPicker = null;
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const btnSubmit = document.getElementById('btn-submit');
@@ -13,6 +13,12 @@ const btnSubmitText = document.getElementById('btn-submit-text');
 const btnSubmitSpinner = document.getElementById('btn-submit-spinner');
 const toggleUrgent = document.getElementById('toggle-urgent');
 const promptField = document.getElementById('field-prompt');
+const scheduleModeField = document.getElementById('field-schedule-mode');
+const weekTimeWrap = document.getElementById('week-time-wrap');
+const weekTimeField = document.getElementById('field-week-time');
+const customScheduleWrap = document.getElementById('custom-schedule-wrap');
+const scheduleHint = document.getElementById('schedule-hint');
+const btnSetArticleScheduleDefault = document.getElementById('btn-set-article-schedule-default');
 
 const statusEmpty = document.getElementById('status-empty');
 const statusContent = document.getElementById('status-content');
@@ -33,7 +39,7 @@ const modalOutputContent = document.getElementById('modal-output-content');
 const btnCloseModal = document.getElementById('btn-close-modal');
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
-schedulePicker = flatpickr('#field-schedule', {
+customStartPicker = flatpickr('#field-article-start-date', {
   enableTime: true,
   dateFormat: 'Y-m-d H:i',
   time_24hr: true,
@@ -42,6 +48,175 @@ schedulePicker = flatpickr('#field-schedule', {
   position: 'auto',
   static: false
 });
+
+const scheduleHintsByMode = {
+  this_week: 'Pick time only for this week.',
+  next_week: 'Pick time only for next week.',
+  custom_start_date: 'Pick a custom start date and time.'
+};
+
+function formatLocalDateTime(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+function nextMondayAtNine(now = new Date()) {
+  const next = new Date(now);
+  const day = next.getDay();
+  const daysUntilMonday = ((8 - day) % 7) || 7;
+  next.setDate(next.getDate() + daysUntilMonday);
+  next.setHours(9, 0, 0, 0);
+  return next;
+}
+
+function parseTimeParts(input) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec((input || '').trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return { hours, minutes };
+}
+
+function getCurrentTimeParts() {
+  const fromInput = parseTimeParts(weekTimeField?.value || '');
+  if (fromInput) return fromInput;
+
+  const selected = customStartPicker?.selectedDates?.[0] || null;
+  if (selected) {
+    return { hours: selected.getHours(), minutes: selected.getMinutes() };
+  }
+
+  const now = new Date();
+  return { hours: now.getHours(), minutes: now.getMinutes() };
+}
+
+function getModeDefaultDate(mode, timeInput) {
+  const parsed = parseTimeParts(timeInput || '');
+  const time = getCurrentTimeParts();
+  const hours = parsed ? parsed.hours : time.hours;
+  const minutes = parsed ? parsed.minutes : time.minutes;
+
+  if (mode === 'next_week') {
+    const nextWeek = nextMondayAtNine();
+    nextWeek.setHours(hours, minutes, 0, 0);
+    return nextWeek;
+  }
+
+  if (mode === 'this_week') {
+    const thisWeek = new Date();
+    thisWeek.setHours(hours, minutes, 0, 0);
+    return thisWeek;
+  }
+
+  if (mode === 'custom_start_date') {
+    const current = customStartPicker?.selectedDates?.[0] ? new Date(customStartPicker.selectedDates[0]) : new Date();
+    current.setHours(time.hours, time.minutes, 0, 0);
+    return current;
+  }
+
+  return null;
+}
+
+function resolveScheduleStartDate(mode, rawInput) {
+  if (mode === 'custom_start_date') {
+    return rawInput || '';
+  }
+
+  const time = parseTimeParts(rawInput) || getCurrentTimeParts();
+  const baseDate = mode === 'next_week' ? nextMondayAtNine() : new Date();
+  baseDate.setHours(time.hours, time.minutes, 0, 0);
+  return formatLocalDateTime(baseDate);
+}
+
+function updateScheduleModeUi(mode) {
+  const isCustom = mode === 'custom_start_date';
+  weekTimeWrap.classList.toggle('hidden', isCustom);
+  customScheduleWrap.classList.toggle('hidden', !isCustom);
+  scheduleHint.textContent = scheduleHintsByMode[mode] || scheduleHintsByMode.this_week;
+}
+
+function applyModeDefaultDate(mode) {
+  const nextDate = getModeDefaultDate(mode, weekTimeField?.value || '');
+  if (nextDate) {
+    const hh = String(nextDate.getHours()).padStart(2, '0');
+    const mm = String(nextDate.getMinutes()).padStart(2, '0');
+    if (weekTimeField) weekTimeField.value = `${hh}:${mm}`;
+    if (customStartPicker && mode === 'custom_start_date') {
+      customStartPicker.setDate(nextDate, true);
+    }
+  }
+}
+
+scheduleModeField.addEventListener('change', () => {
+  const mode = scheduleModeField.value;
+  updateScheduleModeUi(mode);
+  applyModeDefaultDate(mode);
+});
+
+if (customStartPicker?.config?.onChange) {
+  customStartPicker.config.onChange.push(() => updateScheduleModeUi(scheduleModeField.value));
+}
+
+async function applyScheduleDefaults() {
+  const cfg = await window.api.configGet();
+  const defaultMode = cfg.default_article_schedule_week || 'this_week';
+  const defaultTimeValue = cfg.default_article_schedule_time || '';
+  const defaultCustomStart = cfg.default_article_custom_start_date || '';
+
+  scheduleModeField.value = defaultMode;
+  updateScheduleModeUi(defaultMode);
+
+  if (defaultMode === 'custom_start_date' && defaultCustomStart) {
+    const parsedDate = new Date(defaultCustomStart.replace(' ', 'T'));
+    if (!Number.isNaN(parsedDate.getTime())) {
+      if (customStartPicker) customStartPicker.setDate(parsedDate, true);
+    }
+  } else if (defaultTimeValue) {
+    if (weekTimeField) weekTimeField.value = defaultTimeValue;
+  }
+
+  if (!weekTimeField?.value && !defaultCustomStart) {
+    applyModeDefaultDate(defaultMode);
+  }
+}
+
+async function saveCurrentScheduleAsDefault() {
+  const articleScheduleTime = scheduleModeField.value || 'this_week';
+  const scheduleInput = articleScheduleTime === 'custom_start_date'
+    ? (customStartPicker ? customStartPicker.input.value.trim() : document.getElementById('field-article-start-date').value.trim())
+    : (weekTimeField ? weekTimeField.value.trim() : '');
+
+  if (!scheduleInput) {
+    showToast('error', articleScheduleTime === 'custom_start_date' ? 'Pick a custom start date before saving it as the default.' : 'Pick a time before saving it as the default.');
+    return;
+  }
+
+  const defaultScheduleStart = resolveScheduleStartDate(articleScheduleTime, scheduleInput);
+  const defaultTimeValue = articleScheduleTime === 'custom_start_date' ? defaultScheduleStart : scheduleInput;
+
+  await window.api.configSet({
+    default_article_schedule_time: defaultTimeValue,
+    default_article_schedule_week: articleScheduleTime,
+    default_article_custom_start_date: defaultScheduleStart
+  });
+
+  const settingsModeField = document.getElementById('cfg-default-article-schedule-time');
+  const settingsCustomDateField = document.getElementById('cfg-default-article-custom-start-date');
+  if (settingsModeField) settingsModeField.value = articleScheduleTime;
+  if (settingsCustomDateField) settingsCustomDateField.value = defaultScheduleStart;
+
+  showToast('success', 'Default article schedule saved');
+}
+
+applyScheduleDefaults();
+
+btnSetArticleScheduleDefault?.addEventListener('click', saveCurrentScheduleAsDefault);
 
 // ─── Prompt action buttons ───────────────────────────────────────────────────
 document.getElementById('btn-prompt-clear').addEventListener('click', () => {
@@ -86,13 +261,23 @@ btnSubmit.addEventListener('click', async () => {
   const prompt = promptField.value.trim();
   const platform = document.getElementById('field-platform').value;
   const keyword = document.getElementById('field-keyword').value.trim();
-  const scheduleDate = schedulePicker ? schedulePicker.input.value : document.getElementById('field-schedule').value;
+  const articleScheduleTime = scheduleModeField.value || 'this_week';
+  const scheduleInput = articleScheduleTime === 'custom_start_date'
+    ? (customStartPicker ? customStartPicker.input.value.trim() : document.getElementById('field-article-start-date').value.trim())
+    : (weekTimeField ? weekTimeField.value.trim() : '');
 
   if (!prompt) {
     showToast('error', 'Prompt is required.');
     promptField.focus();
     return;
   }
+
+  if (!scheduleInput) {
+    showToast('error', articleScheduleTime === 'custom_start_date' ? 'Schedule date and time is required.' : 'Schedule time is required.');
+    return;
+  }
+
+  const scheduleDate = resolveScheduleStartDate(articleScheduleTime, scheduleInput);
 
   // Check webhook config
   const cfg = await window.api.configGet();
@@ -104,12 +289,16 @@ btnSubmit.addEventListener('click', async () => {
   setSubmitting(true);
 
   try {
+    const timeValue = articleScheduleTime === 'custom_start_date' ? scheduleDate : (weekTimeField?.value || '');
     const result = await window.api.requestSubmit({
       prompt,
       platform,
       keyword,
       urgent: urgentActive,
-      schedule_date: scheduleDate
+      schedule_date: scheduleDate,
+      article_schedule_time: timeValue,
+      article_schedule_week: articleScheduleTime,
+      article_schedule_start_date: scheduleDate
     });
 
     currentRequestId = result.request_id;
