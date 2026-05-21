@@ -5,3 +5,5 @@ nul
 *.log
 .DS_Store
 Thumbs.db
+
+config/settings.json
