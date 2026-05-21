@@ -17,7 +17,6 @@ function send(requestId, payload, mainWindow) {
     request_id: requestId,
     prompt: payload.prompt,
     keyword: payload.keyword || '',
-    platform: payload.platform || '',
     urgent: !!payload.urgent,
     schedule_date: payload.schedule_date || '',
     article_schedule_time: payload.article_schedule_time || '',

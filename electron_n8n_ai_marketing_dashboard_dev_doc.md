@@ -218,7 +218,6 @@ Main operational screen.
 
 Contains:
 - Prompt textarea
-- Platform dropdown
 - Urgent toggle
 - Schedule date picker
 - Optional keyword/tag field
@@ -304,7 +303,6 @@ This screen is NOT intended for marketing users.
 | request_id | TEXT |
 | prompt | TEXT |
 | keyword | TEXT |
-| platform | TEXT |
 | urgent | INTEGER |
 | schedule_date | TEXT |
 | status | TEXT |
@@ -401,7 +399,6 @@ Payload example:
   "request_id": "REQ-1778639201932",
   "prompt": "Create Instagram campaign ideas",
   "keyword": "summer campaign",
-  "platform": "Instagram",
   "urgent": true,
   "schedule_date": "2026-05-14"
 }
@@ -453,7 +450,6 @@ Update:
 | AI Request Form                                |
 |------------------------------------------------|
 | Prompt textarea                                |
-| Platform dropdown                              |
 | Urgent toggle                                  |
 | Schedule date                                  |
 | Keyword field                                  |
@@ -704,7 +700,7 @@ Output presentation quality matters heavily.
 
 # Packaging
 
-Target platform:
+Target OS:
 
 - Windows
 

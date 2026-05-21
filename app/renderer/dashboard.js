@@ -24,7 +24,6 @@ const statusEmpty = document.getElementById('status-empty');
 const statusContent = document.getElementById('status-content');
 const statusRequestId = document.getElementById('status-request-id');
 const statusBadge = document.getElementById('status-badge');
-const statusPlatform = document.getElementById('status-platform');
 const statusErrorRow = document.getElementById('status-error-row');
 const statusErrorMsg = document.getElementById('status-error-msg');
 
@@ -259,7 +258,6 @@ btnSubmit.addEventListener('click', async () => {
   if (isSubmitting) return;
 
   const prompt = promptField.value.trim();
-  const platform = document.getElementById('field-platform').value;
   const keyword = document.getElementById('field-keyword').value.trim();
   const articleScheduleTime = scheduleModeField.value || 'this_week';
   const scheduleInput = articleScheduleTime === 'custom_start_date'
@@ -292,7 +290,6 @@ btnSubmit.addEventListener('click', async () => {
     const timeValue = articleScheduleTime === 'custom_start_date' ? scheduleDate : (weekTimeField?.value || '');
     const result = await window.api.requestSubmit({
       prompt,
-      platform,
       keyword,
       urgent: urgentActive,
       schedule_date: scheduleDate,
@@ -302,7 +299,7 @@ btnSubmit.addEventListener('click', async () => {
     });
 
     currentRequestId = result.request_id;
-    updateStatusPanel({ request_id: result.request_id, status: 'Pending', platform });
+    updateStatusPanel({ request_id: result.request_id, status: 'Pending' });
     showOutputSkeleton();
     showToast('success', 'Request submitted successfully');
   } catch (err) {
@@ -325,7 +322,6 @@ function updateStatusPanel(data) {
   statusContent.classList.remove('hidden');
 
   statusRequestId.textContent = data.request_id || '';
-  statusPlatform.textContent = data.platform || '—';
 
   const badge = data.status || 'Pending';
   statusBadge.textContent = badge;
