@@ -2,9 +2,30 @@
 
 let settingsCache = {};
 
+function applyInterfaceSettings(cfg) {
+  const darkMode = cfg.dark_mode !== false;
+  const animationsEnabled = cfg.animations_enabled !== false;
+  const compactMode = !!cfg.compact_mode;
+
+  document.documentElement.classList.toggle('dark', darkMode);
+  document.body.classList.toggle('light-mode', !darkMode);
+  document.body.classList.toggle('no-animations', !animationsEnabled);
+  document.body.classList.toggle('compact-mode', compactMode);
+}
+
+function applyInterfacePreviewFromToggles() {
+  applyInterfaceSettings({
+    ...settingsCache,
+    dark_mode: getToggle('cfg-dark-mode'),
+    animations_enabled: getToggle('cfg-animations'),
+    compact_mode: getToggle('cfg-compact')
+  });
+}
+
 async function loadSettings() {
   settingsCache = await window.api.configGet();
   applySettingsToForm(settingsCache);
+  applyInterfaceSettings(settingsCache);
 }
 
 function applySettingsToForm(cfg) {
@@ -47,6 +68,10 @@ function getToggle(id) {
   el.addEventListener('click', () => {
     const current = el.getAttribute('aria-checked') === 'true';
     el.setAttribute('aria-checked', String(!current));
+
+    if (id === 'cfg-dark-mode' || id === 'cfg-animations' || id === 'cfg-compact') {
+      applyInterfacePreviewFromToggles();
+    }
   });
 });
 
@@ -72,6 +97,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
 
   await window.api.configSet(data);
   settingsCache = data;
+  applyInterfaceSettings(settingsCache);
   showToast('success', 'Settings saved');
 });
 
@@ -107,3 +133,13 @@ document.getElementById('btn-clear-history').addEventListener('click', async () 
 });
 
 window.loadSettings = loadSettings;
+
+// Apply interface preferences on app startup, even before opening Settings.
+(async () => {
+  try {
+    settingsCache = await window.api.configGet();
+    applyInterfaceSettings(settingsCache);
+  } catch {
+    // No-op: keep current defaults if settings cannot be read.
+  }
+})();

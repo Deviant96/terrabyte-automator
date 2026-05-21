@@ -501,3 +501,83 @@ select.field-input option { background: #1c2333; }
   max-width: 760px;
   box-shadow: 0 24px 64px rgba(0,0,0,0.6);
 }
+
+/* ─── Interface Settings Modes ───────────────────────────────────────────── */
+body.light-mode {
+  background: #f5f7fb !important;
+  color: #0f172a !important;
+}
+body.light-mode .bg-surface { background: #f5f7fb !important; }
+body.light-mode .bg-panel { background: #e9eef7 !important; }
+body.light-mode .bg-card,
+body.light-mode .card,
+body.light-mode .history-item,
+body.light-mode .modal-box {
+  background: #ffffff !important;
+  border-color: #d7dfec !important;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08) !important;
+}
+body.light-mode .field-input,
+body.light-mode .btn-ghost,
+body.light-mode .prompt-action-btn {
+  background: #ffffff !important;
+  border-color: #cfd8e6 !important;
+  color: #334155 !important;
+}
+body.light-mode .field-input::placeholder { color: #94a3b8 !important; }
+body.light-mode .field-input:focus {
+  border-color: #4f46e5 !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14) !important;
+}
+body.light-mode .text-slate-100,
+body.light-mode .text-slate-300,
+body.light-mode .text-white { color: #0f172a !important; }
+body.light-mode .text-muted,
+body.light-mode .settings-section-title,
+body.light-mode .field-label,
+body.light-mode .nav-item,
+body.light-mode .titlebar-btn { color: #64748b !important; }
+body.light-mode .border-border { border-color: #d7dfec !important; }
+body.light-mode .nav-item:hover,
+body.light-mode .btn-ghost:hover,
+body.light-mode .prompt-action-btn:hover { background: #eef2fb !important; color: #1e293b !important; }
+body.light-mode .nav-item.active {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+}
+body.light-mode .schedule-chip {
+  background: rgba(79, 70, 229, 0.08) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+  color: #4338ca !important;
+}
+body.light-mode .flatpickr-calendar,
+body.light-mode .flatpickr-time {
+  background: #ffffff !important;
+  border-color: #d7dfec !important;
+}
+body.light-mode .flatpickr-day,
+body.light-mode .flatpickr-current-month,
+body.light-mode .flatpickr-time input,
+body.light-mode .flatpickr-monthDropdown-months {
+  color: #0f172a !important;
+}
+
+body.compact-mode .card,
+body.compact-mode .modal-box,
+body.compact-mode .history-item { padding: 14px 16px !important; border-radius: 12px !important; }
+body.compact-mode .field-input { padding: 8px 10px !important; border-radius: 8px !important; }
+body.compact-mode .btn-primary { padding: 9px 14px !important; border-radius: 8px !important; }
+body.compact-mode .btn-ghost,
+body.compact-mode .prompt-action-btn { padding: 5px 9px !important; border-radius: 7px !important; }
+body.compact-mode .nav-item { padding: 7px 10px !important; }
+body.compact-mode .settings-toggle-row { padding: 2px 0 !important; }
+body.compact-mode .prompt-textarea { padding-bottom: 30px !important; }
+body.compact-mode .prompt-actions { bottom: 6px; left: 6px; }
+
+body.no-animations *,
+body.no-animations *::before,
+body.no-animations *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
