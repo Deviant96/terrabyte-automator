@@ -111,6 +111,19 @@
 .prompt-action-btn:hover { background: #2a3344; color: #cbd5e1; border-color: #3a4455; }
 .prompt-action-btn:active { transform: scale(0.95); }
 
+/* ─── Keyword Wrap ───────────────────────────────────────────────────────── */
+.keyword-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.keyword-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
 /* ─── Datetime Picker Wrap ───────────────────────────────────────────────── */
 .datetime-wrap {
   position: relative;
@@ -461,6 +474,10 @@ select.field-input option { background: #1c2333; }
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .history-item:hover { border-color: #6366f1; box-shadow: 0 0 0 1px rgba(99,102,241,0.2); }
+.history-item:focus-visible {
+  outline: 2px solid rgba(99,102,241,0.75);
+  outline-offset: 2px;
+}
 
 /* ─── Settings ───────────────────────────────────────────────────────────── */
 .settings-section-title {

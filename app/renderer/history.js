@@ -66,11 +66,16 @@ function renderHistory() {
     const item = document.createElement('div');
     item.className = 'history-item animate-fadein';
     item.style.animationDelay = (i * 0.04) + 's';
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
 
     const date = req.created_at ? new Date(req.created_at).toLocaleString() : '';
     const promptSnippet = (req.prompt || '').slice(0, 120) + ((req.prompt || '').length > 120 ? '...' : '');
+    const keywordSnippet = (req.keyword || '').slice(0, 120) + ((req.keyword || '').length > 120 ? '...' : '');
+    const primaryText = keywordSnippet || promptSnippet || '';
     const scheduleMode = formatScheduleMode(req.article_schedule_time || 'this_week');
     const scheduleStartDate = formatScheduleStartDate(req);
+    const hasOutput = !!req.output;
 
     item.innerHTML = `
       <div class="flex items-start justify-between gap-4">
@@ -78,11 +83,9 @@ function renderHistory() {
           <div class="flex items-center gap-2 mb-1">
             <span class="text-xs font-mono text-accent">${req.request_id}</span>
             <span class="status-badge status-${req.status}">${req.status}</span>
-            ${req.platform ? '<span class="text-xs text-muted">• ' + req.platform + '</span>' : ''}
             ${req.urgent ? '<span class="text-xs text-warning">• Urgent</span>' : ''}
           </div>
-          <p class="text-sm text-slate-300 truncate">${promptSnippet}</p>
-          ${req.keyword ? '<p class="text-xs text-muted mt-1"># ' + req.keyword + '</p>' : ''}
+          <p class="text-sm text-slate-300 truncate">${primaryText}</p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">
             <span class="schedule-chip">Mode: ${scheduleMode}</span>
             <span class="schedule-chip">Start: ${scheduleStartDate}</span>
@@ -90,8 +93,8 @@ function renderHistory() {
         </div>
         <div class="flex-shrink-0 text-right">
           <p class="text-xs text-muted">${date}</p>
-          <div class="flex gap-2 mt-2 justify-end">
-            ${req.output ? '<button class="btn-ghost text-xs btn-view-output" data-id="' + req.request_id + '">View</button>' : ''}
+          <div class="flex gap-2 mt-2 justify-end items-center">
+            <span class="text-xs ${hasOutput ? 'text-accent' : 'text-muted'}">${hasOutput ? 'Click to view' : 'No output yet'}</span>
             <button class="btn-ghost text-xs text-danger btn-delete-history" data-id="' + req.request_id + '">Delete</button>
           </div>
         </div>
@@ -99,10 +102,19 @@ function renderHistory() {
       ${req.error_message ? '<p class="text-xs text-danger mt-2 bg-danger/10 px-3 py-1 rounded-lg">' + req.error_message + '</p>' : ''}
     `;
 
-    // View output
-    item.querySelector('.btn-view-output')?.addEventListener('click', (e) => {
-      e.stopPropagation();
+    // View output (whole card)
+    item.addEventListener('click', () => {
+      if (!hasOutput) {
+        showToast('info', 'Output is not available yet.');
+        return;
+      }
       openOutputModal(req.output, req.request_id);
+    });
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        item.click();
+      }
     });
 
     // Delete

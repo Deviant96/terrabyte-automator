@@ -12,7 +12,10 @@ const btnSubmit = document.getElementById('btn-submit');
 const btnSubmitText = document.getElementById('btn-submit-text');
 const btnSubmitSpinner = document.getElementById('btn-submit-spinner');
 const toggleUrgent = document.getElementById('toggle-urgent');
-const promptField = document.getElementById('field-prompt');
+const keywordField = document.getElementById('field-keyword');
+const btnKeywordClear = document.getElementById('btn-keyword-clear');
+const btnKeywordCopy = document.getElementById('btn-keyword-copy');
+const btnKeywordPaste = document.getElementById('btn-keyword-paste');
 const scheduleModeField = document.getElementById('field-schedule-mode');
 const weekTimeWrap = document.getElementById('week-time-wrap');
 const weekTimeField = document.getElementById('field-week-time');
@@ -24,7 +27,6 @@ const statusEmpty = document.getElementById('status-empty');
 const statusContent = document.getElementById('status-content');
 const statusRequestId = document.getElementById('status-request-id');
 const statusBadge = document.getElementById('status-badge');
-const statusPlatform = document.getElementById('status-platform');
 const statusErrorRow = document.getElementById('status-error-row');
 const statusErrorMsg = document.getElementById('status-error-msg');
 
@@ -218,32 +220,35 @@ applyScheduleDefaults();
 
 btnSetArticleScheduleDefault?.addEventListener('click', saveCurrentScheduleAsDefault);
 
-// ─── Prompt action buttons ───────────────────────────────────────────────────
-document.getElementById('btn-prompt-clear').addEventListener('click', () => {
-  promptField.value = '';
-  promptField.focus();
+// ─── Keyword action buttons ──────────────────────────────────────────────────
+btnKeywordClear?.addEventListener('click', () => {
+  if (!keywordField) return;
+  keywordField.value = '';
+  keywordField.focus();
 });
 
-document.getElementById('btn-prompt-copy').addEventListener('click', async () => {
-  const text = promptField.value;
+btnKeywordCopy?.addEventListener('click', async () => {
+  if (!keywordField) return;
+  const text = keywordField.value;
   if (!text.trim()) { showToast('warning', 'Nothing to copy.'); return; }
   try {
     await navigator.clipboard.writeText(text);
-    showToast('success', 'Prompt copied');
+    showToast('success', 'Keyword copied');
   } catch { showToast('error', 'Copy failed'); }
 });
 
-document.getElementById('btn-prompt-paste').addEventListener('click', async () => {
+btnKeywordPaste?.addEventListener('click', async () => {
+  if (!keywordField) return;
   try {
     const text = await navigator.clipboard.readText();
     if (text) {
-      const start = promptField.selectionStart;
-      const end = promptField.selectionEnd;
-      const before = promptField.value.slice(0, start);
-      const after = promptField.value.slice(end);
-      promptField.value = before + text + after;
-      promptField.selectionStart = promptField.selectionEnd = start + text.length;
-      promptField.focus();
+      const start = keywordField.selectionStart ?? keywordField.value.length;
+      const end = keywordField.selectionEnd ?? keywordField.value.length;
+      const before = keywordField.value.slice(0, start);
+      const after = keywordField.value.slice(end);
+      keywordField.value = before + text + after;
+      keywordField.selectionStart = keywordField.selectionEnd = start + text.length;
+      keywordField.focus();
     }
   } catch { showToast('error', 'Paste failed — clipboard access denied.'); }
 });
@@ -258,17 +263,17 @@ toggleUrgent.addEventListener('click', () => {
 btnSubmit.addEventListener('click', async () => {
   if (isSubmitting) return;
 
-  const prompt = promptField.value.trim();
-  const platform = document.getElementById('field-platform').value;
-  const keyword = document.getElementById('field-keyword').value.trim();
+  const keyword = keywordField ? keywordField.value.trim() : '';
+  // Backend/webhook still expects `prompt`, so we derive it from keyword tags.
+  const prompt = keyword;
   const articleScheduleTime = scheduleModeField.value || 'this_week';
   const scheduleInput = articleScheduleTime === 'custom_start_date'
     ? (customStartPicker ? customStartPicker.input.value.trim() : document.getElementById('field-article-start-date').value.trim())
     : (weekTimeField ? weekTimeField.value.trim() : '');
 
-  if (!prompt) {
-    showToast('error', 'Prompt is required.');
-    promptField.focus();
+  if (!keyword) {
+    showToast('error', 'Keyword / Tag is required.');
+    keywordField?.focus();
     return;
   }
 
@@ -292,7 +297,6 @@ btnSubmit.addEventListener('click', async () => {
     const timeValue = articleScheduleTime === 'custom_start_date' ? scheduleDate : (weekTimeField?.value || '');
     const result = await window.api.requestSubmit({
       prompt,
-      platform,
       keyword,
       urgent: urgentActive,
       schedule_date: scheduleDate,
@@ -302,7 +306,7 @@ btnSubmit.addEventListener('click', async () => {
     });
 
     currentRequestId = result.request_id;
-    updateStatusPanel({ request_id: result.request_id, status: 'Pending', platform });
+    updateStatusPanel({ request_id: result.request_id, status: 'Pending' });
     showOutputSkeleton();
     showToast('success', 'Request submitted successfully');
   } catch (err) {
@@ -325,7 +329,6 @@ function updateStatusPanel(data) {
   statusContent.classList.remove('hidden');
 
   statusRequestId.textContent = data.request_id || '';
-  statusPlatform.textContent = data.platform || '—';
 
   const badge = data.status || 'Pending';
   statusBadge.textContent = badge;
