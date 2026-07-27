@@ -83,7 +83,6 @@ function renderHistory() {
           <div class="flex items-center gap-2 mb-1">
             <span class="text-xs font-mono text-accent">${req.request_id}</span>
             <span class="status-badge status-${req.status}">${req.status}</span>
-            ${req.urgent ? '<span class="text-xs text-warning">• Urgent</span>' : ''}
           </div>
           <p class="text-sm text-slate-300 truncate">${primaryText}</p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">

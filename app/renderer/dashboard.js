@@ -4,14 +4,12 @@
 // ─── State ──────────────────────────────────────────────────────────────────
 let currentRequestId = null;
 let isSubmitting = false;
-let urgentActive = false;
 let customStartPicker = null;
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const btnSubmit = document.getElementById('btn-submit');
 const btnSubmitText = document.getElementById('btn-submit-text');
 const btnSubmitSpinner = document.getElementById('btn-submit-spinner');
-const toggleUrgent = document.getElementById('toggle-urgent');
 const keywordField = document.getElementById('field-keyword');
 const btnKeywordClear = document.getElementById('btn-keyword-clear');
 const btnKeywordCopy = document.getElementById('btn-keyword-copy');
@@ -253,12 +251,6 @@ btnKeywordPaste?.addEventListener('click', async () => {
   } catch { showToast('error', 'Paste failed — clipboard access denied.'); }
 });
 
-// ─── Urgent toggle ───────────────────────────────────────────────────────────
-toggleUrgent.addEventListener('click', () => {
-  urgentActive = !urgentActive;
-  toggleUrgent.setAttribute('aria-checked', String(urgentActive));
-});
-
 // ─── Submit ──────────────────────────────────────────────────────────────────
 btnSubmit.addEventListener('click', async () => {
   if (isSubmitting) return;
@@ -298,7 +290,6 @@ btnSubmit.addEventListener('click', async () => {
     const result = await window.api.requestSubmit({
       prompt,
       keyword,
-      urgent: urgentActive,
       schedule_date: scheduleDate,
       article_schedule_time: timeValue,
       article_schedule_week: articleScheduleTime,

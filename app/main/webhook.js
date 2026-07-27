@@ -33,7 +33,6 @@ function send(requestId, payload, mainWindow) {
     prompt: payload.prompt,
     keyword: payload.keyword || '',
     platform: payload.platform || '',
-    urgent: !!payload.urgent,
     schedule_date: payload.schedule_date || '',
     article_schedule_time: payload.article_schedule_time || '',
     article_schedule_week: payload.article_schedule_week || 'this_week',

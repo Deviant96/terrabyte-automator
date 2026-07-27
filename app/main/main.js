@@ -85,7 +85,6 @@ ipcMain.handle('request-submit', async (_, payload) => {
     prompt: payload.prompt,
     keyword: payload.keyword || '',
     platform: payload.platform || '',
-    urgent: payload.urgent ? 1 : 0,
     schedule_date: payload.schedule_date || '',
     article_schedule_time: payload.article_schedule_time || '',
     article_schedule_week: payload.article_schedule_week || 'this_week',
