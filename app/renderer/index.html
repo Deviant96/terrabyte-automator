@@ -328,6 +328,57 @@
             </div>
           </div>
 
+          <!-- Social Accounts / Token Management -->
+          <div class="card space-y-4">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="settings-section-title mb-0 border-0 pb-0">Social Accounts</h2>
+              <button type="button" id="btn-add-social-account" class="btn-ghost text-xs">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Account
+              </button>
+            </div>
+            <p class="text-xs text-muted -mt-1">Manage Instagram, Threads, and Facebook tokens for later posting. Tokens are stored locally in config.</p>
+
+            <div id="social-accounts-list" class="space-y-3"></div>
+            <div id="social-accounts-empty" class="text-sm text-muted py-2">No social accounts yet. Add one to store tokens and IDs.</div>
+
+            <!-- Add / Edit form -->
+            <div id="social-account-form" class="social-account-form hidden space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 id="social-account-form-title" class="text-sm font-semibold text-slate-300">Add Account</h3>
+                <button type="button" id="btn-cancel-social-account" class="btn-ghost text-xs">Cancel</button>
+              </div>
+              <input type="hidden" id="social-account-edit-id" value="" />
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="field-label">Platform<span class="hint-icon" data-hint="Choose which network this account belongs to.">?</span></label>
+                  <select id="social-account-platform" class="field-input">
+                    <option value="instagram">Instagram</option>
+                    <option value="threads">Threads</option>
+                    <option value="facebook">Facebook</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label">Account Label<span class="hint-icon" data-hint="A friendly name so you can tell accounts apart, e.g. Brand IG or Company Page.">?</span></label>
+                  <input id="social-account-label" type="text" class="field-input" placeholder="e.g. Brand Instagram" />
+                </div>
+                <div>
+                  <label class="field-label">Account / Page ID<span class="hint-icon" data-hint="Platform ID used by Meta APIs: Instagram Business Account ID, Threads User ID, or Facebook Page ID.">?</span></label>
+                  <input id="social-account-account-id" type="text" class="field-input" placeholder="e.g. 17841400000000000" />
+                </div>
+                <div>
+                  <label class="field-label">Access Token<span class="hint-icon" data-hint="Paste your custom access token (Page token or long-lived user token). Stored only in local config.">?</span></label>
+                  <input id="social-account-token" type="password" class="field-input" placeholder="Paste access token..." autocomplete="off" />
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Notes <span class="text-muted text-xs">(optional)</span></label>
+                <input id="social-account-notes" type="text" class="field-input" placeholder="Optional notes..." />
+              </div>
+              <button type="button" id="btn-save-social-account" class="btn-primary w-full sm:w-auto">Save Account</button>
+            </div>
+          </div>
+
           <!-- UI -->
           <div class="card space-y-4">
             <h2 class="settings-section-title">Interface</h2>

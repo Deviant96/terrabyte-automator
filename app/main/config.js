@@ -19,7 +19,8 @@ const defaults = {
   compact_mode: false,
   database_path: '',
   debug_logs: false,
-  verbose_mode: false
+  verbose_mode: false,
+  social_accounts: []
 };
 
 function load() {

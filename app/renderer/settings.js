@@ -1,10 +1,22 @@
 'use strict';
 
 let settingsCache = {};
+let socialAccounts = [];
+
+const PLATFORM_LABELS = {
+  instagram: 'Instagram',
+  threads: 'Threads',
+  facebook: 'Facebook'
+};
 
 async function loadSettings() {
   settingsCache = await window.api.configGet();
+  socialAccounts = Array.isArray(settingsCache.social_accounts)
+    ? settingsCache.social_accounts.slice()
+    : [];
   applySettingsToForm(settingsCache);
+  renderSocialAccounts();
+  hideSocialAccountForm();
 }
 
 function applySettingsToForm(cfg) {
@@ -40,6 +52,164 @@ function getToggle(id) {
   return el ? el.getAttribute('aria-checked') === 'true' : false;
 }
 
+function maskToken(token) {
+  const value = String(token || '');
+  if (!value) return '—';
+  if (value.length <= 10) return '•'.repeat(Math.min(value.length, 8));
+  return value.slice(0, 4) + '••••••••' + value.slice(-4);
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderSocialAccounts() {
+  const list = document.getElementById('social-accounts-list');
+  const empty = document.getElementById('social-accounts-empty');
+  if (!list || !empty) return;
+
+  list.innerHTML = '';
+
+  if (!socialAccounts.length) {
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+
+  socialAccounts.forEach((account) => {
+    const platform = account.platform || 'instagram';
+    const item = document.createElement('div');
+    item.className = 'social-account-item';
+    item.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1 space-y-1.5">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="social-account-platform ${escapeHtml(platform)}">${escapeHtml(PLATFORM_LABELS[platform] || platform)}</span>
+            <span class="text-sm font-medium text-slate-200 truncate">${escapeHtml(account.label || 'Untitled')}</span>
+          </div>
+          <p class="social-account-meta">ID: ${escapeHtml(account.account_id || '—')}</p>
+          <p class="social-account-token-mask">Token: ${escapeHtml(maskToken(account.access_token))}</p>
+          ${account.notes ? `<p class="text-xs text-muted">${escapeHtml(account.notes)}</p>` : ''}
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <button type="button" class="btn-ghost text-xs btn-edit-social-account" data-id="${escapeHtml(account.id)}">Edit</button>
+          <button type="button" class="btn-ghost text-xs text-danger btn-remove-social-account" data-id="${escapeHtml(account.id)}">Remove</button>
+        </div>
+      </div>
+    `;
+
+    item.querySelector('.btn-edit-social-account')?.addEventListener('click', () => {
+      openSocialAccountForm(account);
+    });
+
+    item.querySelector('.btn-remove-social-account')?.addEventListener('click', () => {
+      removeSocialAccount(account.id);
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function showSocialAccountForm() {
+  const form = document.getElementById('social-account-form');
+  if (form) form.classList.remove('hidden');
+}
+
+function hideSocialAccountForm() {
+  const form = document.getElementById('social-account-form');
+  if (form) form.classList.add('hidden');
+  resetSocialAccountForm();
+}
+
+function resetSocialAccountForm() {
+  setValue('social-account-edit-id', '');
+  setValue('social-account-platform', 'instagram');
+  setValue('social-account-label', '');
+  setValue('social-account-account-id', '');
+  setValue('social-account-token', '');
+  setValue('social-account-notes', '');
+  const title = document.getElementById('social-account-form-title');
+  if (title) title.textContent = 'Add Account';
+}
+
+function openSocialAccountForm(account) {
+  const title = document.getElementById('social-account-form-title');
+  if (title) title.textContent = account ? 'Edit Account' : 'Add Account';
+
+  setValue('social-account-edit-id', account?.id || '');
+  setValue('social-account-platform', account?.platform || 'instagram');
+  setValue('social-account-label', account?.label || '');
+  setValue('social-account-account-id', account?.account_id || '');
+  setValue('social-account-token', account?.access_token || '');
+  setValue('social-account-notes', account?.notes || '');
+  showSocialAccountForm();
+}
+
+function collectSocialAccountFromForm() {
+  const id = document.getElementById('social-account-edit-id')?.value.trim() || '';
+  const platform = document.getElementById('social-account-platform')?.value || 'instagram';
+  const label = document.getElementById('social-account-label')?.value.trim() || '';
+  const accountId = document.getElementById('social-account-account-id')?.value.trim() || '';
+  const accessToken = document.getElementById('social-account-token')?.value.trim() || '';
+  const notes = document.getElementById('social-account-notes')?.value.trim() || '';
+
+  return {
+    id: id || `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    platform,
+    label,
+    account_id: accountId,
+    access_token: accessToken,
+    notes
+  };
+}
+
+function saveSocialAccountFromForm() {
+  const account = collectSocialAccountFromForm();
+
+  if (!account.label) {
+    showToast('error', 'Account label is required.');
+    document.getElementById('social-account-label')?.focus();
+    return;
+  }
+  if (!account.account_id) {
+    showToast('error', 'Account / Page ID is required.');
+    document.getElementById('social-account-account-id')?.focus();
+    return;
+  }
+  if (!account.access_token) {
+    showToast('error', 'Access token is required.');
+    document.getElementById('social-account-token')?.focus();
+    return;
+  }
+
+  const editId = document.getElementById('social-account-edit-id')?.value.trim() || '';
+  if (editId) {
+    const idx = socialAccounts.findIndex((a) => a.id === editId);
+    if (idx >= 0) socialAccounts[idx] = account;
+    else socialAccounts.push(account);
+  } else {
+    socialAccounts.push(account);
+  }
+
+  renderSocialAccounts();
+  hideSocialAccountForm();
+  showToast('success', editId ? 'Account updated (save settings to persist)' : 'Account added (save settings to persist)');
+}
+
+function removeSocialAccount(id) {
+  if (!confirm('Remove this social account from local config?')) return;
+  socialAccounts = socialAccounts.filter((a) => a.id !== id);
+  renderSocialAccounts();
+  const editingId = document.getElementById('social-account-edit-id')?.value.trim();
+  if (editingId === id) hideSocialAccountForm();
+  showToast('info', 'Account removed (save settings to persist)');
+}
+
 // Wire toggle buttons
 ['cfg-dark-mode', 'cfg-animations', 'cfg-compact', 'cfg-debug-logs', 'cfg-verbose'].forEach(id => {
   const el = document.getElementById(id);
@@ -48,6 +218,18 @@ function getToggle(id) {
     const current = el.getAttribute('aria-checked') === 'true';
     el.setAttribute('aria-checked', String(!current));
   });
+});
+
+document.getElementById('btn-add-social-account')?.addEventListener('click', () => {
+  openSocialAccountForm(null);
+});
+
+document.getElementById('btn-cancel-social-account')?.addEventListener('click', () => {
+  hideSocialAccountForm();
+});
+
+document.getElementById('btn-save-social-account')?.addEventListener('click', () => {
+  saveSocialAccountFromForm();
 });
 
 // Save
@@ -67,11 +249,12 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     animations_enabled: getToggle('cfg-animations'),
     compact_mode: getToggle('cfg-compact'),
     debug_logs: getToggle('cfg-debug-logs'),
-    verbose_mode: getToggle('cfg-verbose')
+    verbose_mode: getToggle('cfg-verbose'),
+    social_accounts: socialAccounts
   };
 
   await window.api.configSet(data);
-  settingsCache = data;
+  settingsCache = { ...settingsCache, ...data };
   showToast('success', 'Settings saved');
 });
 
