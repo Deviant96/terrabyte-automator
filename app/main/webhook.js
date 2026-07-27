@@ -13,6 +13,21 @@ function send(requestId, payload, mainWindow) {
     return;
   }
 
+  const socialAccounts = Array.isArray(settings.social_accounts)
+    ? settings.social_accounts.map((account) => ({
+        id: account.id || '',
+        platform: account.platform || '',
+        label: account.label || '',
+        account_id: account.account_id || '',
+        access_token: account.access_token || '',
+        // Parent variable: Facebook Page ID (Instagram is linked under its Page)
+        parent: account.page_id || (account.platform === 'facebook' ? (account.account_id || '') : ''),
+        page_id: account.page_id || '',
+        notes: account.notes || '',
+        source: account.source || 'manual'
+      }))
+    : [];
+
   const body = JSON.stringify({
     request_id: requestId,
     prompt: payload.prompt,
@@ -22,7 +37,9 @@ function send(requestId, payload, mainWindow) {
     schedule_date: payload.schedule_date || '',
     article_schedule_time: payload.article_schedule_time || '',
     article_schedule_week: payload.article_schedule_week || 'this_week',
-    article_schedule_start_date: payload.article_schedule_start_date || payload.schedule_date || ''
+    article_schedule_start_date: payload.article_schedule_start_date || payload.schedule_date || '',
+    // Parent variable for n8n / downstream posting
+    social_accounts: socialAccounts
   });
 
   let url;
