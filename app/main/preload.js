@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('api', {
   // Webhook
   webhookTest: () => ipcRenderer.invoke('webhook-test'),
 
+  // Meta (Facebook + Instagram token sync)
+  metaSyncAccounts: (payload) => ipcRenderer.invoke('meta-sync-accounts', payload),
+
   // Events from main process
   onRequestUpdate: (cb) => ipcRenderer.on('request-update', (_, data) => cb(data)),
   onToast: (cb) => ipcRenderer.on('toast', (_, data) => cb(data))

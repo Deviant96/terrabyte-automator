@@ -20,7 +20,10 @@ const defaults = {
   database_path: '',
   debug_logs: false,
   verbose_mode: false,
-  social_accounts: []
+  social_accounts: [],
+  meta_system_user_token: '',
+  meta_app_secret: '',
+  meta_graph_version: 'v21.0'
 };
 
 function load() {

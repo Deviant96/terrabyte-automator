@@ -57,6 +57,7 @@ app.on('window-all-closed', () => {
 const db = require('./database');
 const webhook = require('./webhook');
 const config = require('./config');
+const meta = require('./meta');
 
 // Window controls
 ipcMain.on('window-minimize', () => mainWindow && mainWindow.minimize());
@@ -134,4 +135,14 @@ ipcMain.handle('db-export', async () => {
 // Webhook test
 ipcMain.handle('webhook-test', async () => {
   return webhook.test();
+});
+
+// Meta social sync (Facebook + Instagram from System User token)
+ipcMain.handle('meta-sync-accounts', async (_, payload = {}) => {
+  return meta.syncFacebookInstagram({
+    systemUserToken: payload.systemUserToken,
+    appSecret: payload.appSecret,
+    graphVersion: payload.graphVersion,
+    persist: payload.persist !== false
+  });
 });

@@ -29,6 +29,9 @@ function applySettingsToForm(cfg) {
   setValue('cfg-max-tokens', cfg.max_tokens || 2048);
   setValue('cfg-default-article-schedule-time', cfg.default_article_schedule_week || 'this_week');
   setValue('cfg-default-article-custom-start-date', cfg.default_article_custom_start_date || '');
+  setValue('cfg-meta-system-user-token', cfg.meta_system_user_token || '');
+  setValue('cfg-meta-app-secret', cfg.meta_app_secret || '');
+  setValue('cfg-meta-graph-version', cfg.meta_graph_version || 'v21.0');
 
   setToggle('cfg-dark-mode', cfg.dark_mode !== false);
   setToggle('cfg-animations', cfg.animations_enabled !== false);
@@ -91,6 +94,7 @@ function renderSocialAccounts() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="social-account-platform ${escapeHtml(platform)}">${escapeHtml(PLATFORM_LABELS[platform] || platform)}</span>
             <span class="text-sm font-medium text-slate-200 truncate">${escapeHtml(account.label || 'Untitled')}</span>
+            ${account.source === 'meta_sync' ? '<span class="text-xs text-accent">Synced</span>' : ''}
           </div>
           <p class="social-account-meta">ID: ${escapeHtml(account.account_id || '—')}</p>
           <p class="social-account-token-mask">Token: ${escapeHtml(maskToken(account.access_token))}</p>
@@ -232,6 +236,68 @@ document.getElementById('btn-save-social-account')?.addEventListener('click', ()
   saveSocialAccountFromForm();
 });
 
+let isMetaSyncing = false;
+
+document.getElementById('btn-sync-meta-accounts')?.addEventListener('click', async () => {
+  if (isMetaSyncing) return;
+
+  const systemUserToken = document.getElementById('cfg-meta-system-user-token')?.value.trim() || '';
+  const appSecret = document.getElementById('cfg-meta-app-secret')?.value.trim() || '';
+  const graphVersion = document.getElementById('cfg-meta-graph-version')?.value.trim() || 'v21.0';
+  const btn = document.getElementById('btn-sync-meta-accounts');
+  const btnText = document.getElementById('btn-sync-meta-accounts-text');
+
+  if (!systemUserToken) {
+    showToast('error', 'Paste your Meta System User token first.');
+    document.getElementById('cfg-meta-system-user-token')?.focus();
+    return;
+  }
+
+  isMetaSyncing = true;
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Syncing...';
+  showToast('info', 'Syncing Facebook & Instagram from Meta...');
+
+  try {
+    // Persist master credentials first so reload keeps them even if sync fails mid-way
+    await window.api.configSet({
+      meta_system_user_token: systemUserToken,
+      meta_app_secret: appSecret,
+      meta_graph_version: graphVersion
+    });
+
+    const result = await window.api.metaSyncAccounts({
+      systemUserToken,
+      appSecret,
+      graphVersion,
+      persist: true
+    });
+
+    if (!result.success) {
+      showToast('error', result.message || 'Meta sync failed.');
+      return;
+    }
+
+    socialAccounts = Array.isArray(result.accounts) ? result.accounts.slice() : [];
+    settingsCache = {
+      ...settingsCache,
+      meta_system_user_token: systemUserToken,
+      meta_app_secret: appSecret,
+      meta_graph_version: graphVersion,
+      social_accounts: socialAccounts
+    };
+    renderSocialAccounts();
+    hideSocialAccountForm();
+    showToast('success', result.message || 'Accounts synced.');
+  } catch (err) {
+    showToast('error', 'Meta sync failed: ' + (err.message || err));
+  } finally {
+    isMetaSyncing = false;
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Sync Facebook & Instagram';
+  }
+});
+
 // Save
 document.getElementById('btn-save-settings').addEventListener('click', async () => {
   const data = {
@@ -250,7 +316,10 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     compact_mode: getToggle('cfg-compact'),
     debug_logs: getToggle('cfg-debug-logs'),
     verbose_mode: getToggle('cfg-verbose'),
-    social_accounts: socialAccounts
+    social_accounts: socialAccounts,
+    meta_system_user_token: document.getElementById('cfg-meta-system-user-token')?.value.trim() || '',
+    meta_app_secret: document.getElementById('cfg-meta-app-secret')?.value.trim() || '',
+    meta_graph_version: document.getElementById('cfg-meta-graph-version')?.value.trim() || 'v21.0'
   };
 
   await window.api.configSet(data);
