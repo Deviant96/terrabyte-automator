@@ -80,10 +80,17 @@ ipcMain.handle('request-submit', async (_, payload) => {
   const requestId = `REQ-${Date.now()}`;
   const now = new Date().toISOString();
 
+  const keywords = Array.isArray(payload.keywords)
+    ? payload.keywords.map((k) => String(k || '').trim()).filter(Boolean)
+    : String(payload.keyword || '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
   const record = {
     request_id: requestId,
-    prompt: payload.prompt,
-    keyword: payload.keyword || '',
+    prompt: payload.prompt || keywords.join(', '),
+    keyword: JSON.stringify(keywords),
     platform: payload.platform || '',
     schedule_date: payload.schedule_date || '',
     article_schedule_time: payload.article_schedule_time || '',
@@ -99,7 +106,7 @@ ipcMain.handle('request-submit', async (_, payload) => {
   db.insertRequest(record);
 
   // fire webhook in background
-  webhook.send(requestId, payload, mainWindow);
+  webhook.send(requestId, { ...payload, keywords }, mainWindow);
 
   return { request_id: requestId };
 });

@@ -26,6 +26,15 @@ function formatScheduleStartDate(req) {
   return rawDate ? new Date(rawDate.replace(' ', 'T')).toLocaleString() : '—';
 }
 
+function formatKeywordsDisplay(req) {
+  const raw = req.keyword || '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean).join(', ');
+  } catch { /* plain string */ }
+  return raw;
+}
+
 async function loadHistory() {
   allRequests = await window.api.requestGetAll();
   renderHistory();
@@ -71,7 +80,8 @@ function renderHistory() {
 
     const date = req.created_at ? new Date(req.created_at).toLocaleString() : '';
     const promptSnippet = (req.prompt || '').slice(0, 120) + ((req.prompt || '').length > 120 ? '...' : '');
-    const keywordSnippet = (req.keyword || '').slice(0, 120) + ((req.keyword || '').length > 120 ? '...' : '');
+    const keywordText = formatKeywordsDisplay(req);
+    const keywordSnippet = keywordText.slice(0, 120) + (keywordText.length > 120 ? '...' : '');
     const primaryText = keywordSnippet || promptSnippet || '';
     const scheduleMode = formatScheduleMode(req.article_schedule_time || 'this_week');
     const scheduleStartDate = formatScheduleStartDate(req);

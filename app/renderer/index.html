@@ -108,34 +108,42 @@
               <div class="space-y-4">
                 <!-- Keyword -->
                 <div>
-                  <label class="field-label">Keyword / Tag<span class="hint-icon" data-hint="Add cybersecurity keywords to guide the AI context. Examples: phishing, ransomware, incident response, SOC alerts, zero-day, CVE.">?</span></label>
+                  <div class="flex items-center justify-between gap-3 mb-1">
+                    <label class="field-label mb-0">Keyword / Tag<span class="hint-icon" data-hint="Add exactly 5 cybersecurity keywords. Press comma or Enter to create a chip. Drag to reorder. Double-click a chip to edit. First keyword maps to the first weekday schedule date.">?</span></label>
+                    <span id="keyword-count" class="text-xs text-muted">0 / 5</span>
+                  </div>
                   <div class="keyword-wrap">
-                    <input
-                      id="field-keyword"
-                      type="text"
-                      class="field-input keyword-input"
-                      placeholder="e.g. phishing, ransomware, incident response, SOC alerts, CVE-2026-XXXX..." />
+                    <div id="keyword-chip-box" class="keyword-chip-box">
+                      <div id="keyword-chips" class="keyword-chips"></div>
+                      <input
+                        id="field-keyword-input"
+                        type="text"
+                        class="keyword-composer"
+                        placeholder="Type a keyword, then comma or Enter..."
+                        autocomplete="off" />
+                    </div>
                     <div class="keyword-actions">
-                      <button id="btn-keyword-clear" class="prompt-action-btn" title="Clear">
+                      <button type="button" id="btn-keyword-clear" class="prompt-action-btn" title="Clear">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         Clear
                       </button>
-                      <button id="btn-keyword-copy" class="prompt-action-btn" title="Copy">
+                      <button type="button" id="btn-keyword-copy" class="prompt-action-btn" title="Copy">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         Copy
                       </button>
-                      <button id="btn-keyword-paste" class="prompt-action-btn" title="Paste">
+                      <button type="button" id="btn-keyword-paste" class="prompt-action-btn" title="Paste">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
                         Paste
                       </button>
                     </div>
                   </div>
+                  <p id="keyword-hint" class="schedule-hint mt-2">Exactly 5 keywords required to submit.</p>
                 </div>
 
                 <!-- Schedule -->
                 <div>
                   <div class="flex items-center justify-between gap-3 mb-1">
-                    <label class="field-label">Article Schedule Time<span class="hint-icon" data-hint="Choose when this 5-article batch starts: this week, next week, or from a custom start date.">?</span></label>
+                    <label class="field-label">Article Schedule Time<span class="hint-icon" data-hint="Choose when this 5-article batch starts: this week, next week, or from a custom start date. Preview uses 5 consecutive weekdays (skips weekends).">?</span></label>
                     <button id="btn-set-article-schedule-default" class="btn-ghost text-xs">Set Default</button>
                   </div>
                   <select id="field-schedule-mode" class="field-input">
@@ -151,6 +159,10 @@
                     <input id="field-article-start-date" type="text" class="field-input datetime-input" placeholder="Pick start date &amp; time..." readonly />
                   </div>
                   <p id="schedule-hint" class="schedule-hint mt-2">Pick the start date and time for the selected mode.</p>
+                  <div id="schedule-preview" class="schedule-preview mt-3 hidden">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Schedule preview</p>
+                    <ol id="schedule-preview-list" class="schedule-preview-list"></ol>
+                  </div>
                 </div>
               </div>
 

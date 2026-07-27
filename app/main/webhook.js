@@ -28,12 +28,20 @@ function send(requestId, payload, mainWindow) {
       }))
     : [];
 
+  const keywords = Array.isArray(payload.keywords)
+    ? payload.keywords.map((k) => String(k || '').trim()).filter(Boolean)
+    : String(payload.keyword || '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
   const body = JSON.stringify({
     request_id: requestId,
     prompt: payload.prompt,
-    keyword: payload.keyword || '',
+    keywords,
     platform: payload.platform || '',
     schedule_date: payload.schedule_date || '',
+    schedule_dates: Array.isArray(payload.schedule_dates) ? payload.schedule_dates : [],
     article_schedule_time: payload.article_schedule_time || '',
     article_schedule_week: payload.article_schedule_week || 'this_week',
     article_schedule_start_date: payload.article_schedule_start_date || payload.schedule_date || '',
