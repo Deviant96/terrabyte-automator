@@ -96,7 +96,7 @@ function send(requestId, payload, mainWindow) {
           status: 'Completed',
           output
         });
-        if (mainWindow) mainWindow.webContents.send('toast', { type: 'success', message: 'AI response completed' });
+        if (mainWindow) mainWindow.webContents.send('toast', { type: 'success', message: 'Workflow acknowledged' });
       } catch (e) {
         db.updateRequest(requestId, { status: 'Error', error_message: e.message });
         if (mainWindow) mainWindow.webContents.send('request-update', { request_id: requestId, status: 'Error', error_message: e.message });

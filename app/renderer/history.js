@@ -142,8 +142,27 @@ function renderHistory() {
 function openOutputModal(output, requestId) {
   const modal = document.getElementById('modal-expand');
   const modalContent = document.getElementById('modal-output-content');
-  modalContent.innerHTML = marked.parse(output || '');
-  document.querySelector('#modal-expand .font-semibold').textContent = 'AI Output — ' + requestId;
+  const raw = String(output || '');
+  let pretty = raw;
+
+  try {
+    const parsed = JSON.parse(raw);
+    pretty = JSON.stringify(parsed, null, 2);
+    modalContent.innerHTML = '<pre class="workflow-response-raw-pre history-raw-pre">' +
+      pretty
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;') +
+      '</pre>';
+  } catch {
+    modalContent.innerHTML = typeof marked !== 'undefined'
+      ? marked.parse(raw)
+      : ('<pre class="workflow-response-raw-pre history-raw-pre">' +
+        raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+        '</pre>');
+  }
+
+  document.querySelector('#modal-expand .font-semibold').textContent = 'Response — ' + requestId;
   modal.classList.remove('hidden');
 }
 

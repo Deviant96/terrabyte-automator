@@ -270,6 +270,102 @@
   font-size: 0.78rem;
 }
 
+/* ─── Workflow Response ──────────────────────────────────────────────────── */
+.workflow-response {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+}
+.workflow-response-status-row {
+  display: flex;
+  align-items: center;
+}
+.workflow-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.workflow-status-success {
+  background: rgba(34,197,94,0.15);
+  color: #4ade80;
+}
+.workflow-status-error {
+  background: rgba(239,68,68,0.15);
+  color: #f87171;
+}
+.workflow-status-progress {
+  background: rgba(245,158,11,0.15);
+  color: #fbbf24;
+}
+.workflow-status-neutral {
+  background: rgba(99,102,241,0.15);
+  color: #a5b4fc;
+}
+.workflow-response-message {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  font-weight: 500;
+}
+.workflow-response-meta {
+  border: 1px solid #2a3344;
+  border-radius: 10px;
+  background: #0f1117;
+  padding: 10px 12px;
+}
+.workflow-response-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.workflow-response-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+}
+.workflow-response-id:hover { color: #cbd5e1; }
+.workflow-response-raw {
+  margin-top: auto;
+  border-top: 1px solid #2a3344;
+  padding-top: 10px;
+}
+.workflow-response-raw summary {
+  cursor: pointer;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  user-select: none;
+}
+.workflow-response-raw summary:hover { color: #94a3b8; }
+.workflow-response-raw-pre,
+.history-raw-pre {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f1117;
+  border: 1px solid #2a3344;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow: auto;
+  max-height: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ─── Datetime Picker Wrap ───────────────────────────────────────────────── */
 .datetime-wrap {
   position: relative;

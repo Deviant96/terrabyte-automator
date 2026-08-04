@@ -17,6 +17,13 @@ async function loadSettings() {
   applySettingsToForm(settingsCache);
   renderSocialAccounts();
   hideSocialAccountForm();
+
+  const pathHint = document.getElementById('settings-path-hint');
+  if (pathHint) {
+    pathHint.textContent = settingsCache.settings_path
+      ? `Config file: ${settingsCache.settings_path}`
+      : '';
+  }
 }
 
 function applySettingsToForm(cfg) {

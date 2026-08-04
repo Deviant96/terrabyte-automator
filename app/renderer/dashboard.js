@@ -41,11 +41,17 @@ const outputEmpty = document.getElementById('output-empty');
 const outputSkeleton = document.getElementById('output-skeleton');
 const outputContent = document.getElementById('output-content');
 const btnCopyOutput = document.getElementById('btn-copy-output');
-const btnExpandOutput = document.getElementById('btn-expand-output');
+const responseStatusBadge = document.getElementById('response-status-badge');
+const responseMessage = document.getElementById('response-message');
+const responseRequestId = document.getElementById('response-request-id');
+const responseRaw = document.getElementById('response-raw');
+const btnCopyResponseId = document.getElementById('btn-copy-response-id');
 
 const modalExpand = document.getElementById('modal-expand');
 const modalOutputContent = document.getElementById('modal-output-content');
 const btnCloseModal = document.getElementById('btn-close-modal');
+
+let lastRawOutput = '';
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
 customStartPicker = flatpickr('#field-article-start-date', {
@@ -643,22 +649,69 @@ function updateStatusPanel(data) {
   }
 }
 
-// ─── Output Panel ─────────────────────────────────────────────────────────────
+// ─── Workflow Response Panel ─────────────────────────────────────────────────
+function parseWorkflowResponse(raw) {
+  const text = String(raw || '').trim();
+  if (!text) {
+    return {
+      status: 'unknown',
+      message: 'No response body returned.',
+      request_id: currentRequestId || '',
+      raw: ''
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return {
+        status: String(parsed.status || 'success'),
+        message: String(parsed.message || parsed.msg || 'Workflow response received.'),
+        request_id: String(parsed.request_id || currentRequestId || ''),
+        raw: JSON.stringify(parsed, null, 2)
+      };
+    }
+  } catch { /* not JSON */ }
+
+  return {
+    status: 'received',
+    message: text.slice(0, 280),
+    request_id: currentRequestId || '',
+    raw: text
+  };
+}
+
+function statusBadgeClass(status) {
+  const value = String(status || '').toLowerCase();
+  if (['success', 'ok', 'completed', 'accepted'].includes(value)) return 'workflow-status-success';
+  if (['error', 'failed', 'fail'].includes(value)) return 'workflow-status-error';
+  if (['pending', 'processing', 'progress', 'in_progress', 'running'].includes(value)) return 'workflow-status-progress';
+  return 'workflow-status-neutral';
+}
+
 function showOutputSkeleton() {
   outputEmpty.classList.add('hidden');
   outputSkeleton.classList.remove('hidden');
   outputContent.classList.add('hidden');
   btnCopyOutput.classList.add('hidden');
-  btnExpandOutput.classList.add('hidden');
 }
 
-function showOutputContent(md) {
+function showOutputContent(raw) {
+  const parsed = parseWorkflowResponse(raw);
+  lastRawOutput = parsed.raw || String(raw || '');
+
   outputSkeleton.classList.add('hidden');
   outputEmpty.classList.add('hidden');
   outputContent.classList.remove('hidden');
   btnCopyOutput.classList.remove('hidden');
-  btnExpandOutput.classList.remove('hidden');
-  outputContent.innerHTML = marked.parse(md || '');
+
+  if (responseStatusBadge) {
+    responseStatusBadge.textContent = parsed.status;
+    responseStatusBadge.className = 'workflow-status-badge ' + statusBadgeClass(parsed.status);
+  }
+  if (responseMessage) responseMessage.textContent = parsed.message;
+  if (responseRequestId) responseRequestId.textContent = parsed.request_id || '—';
+  if (responseRaw) responseRaw.textContent = lastRawOutput;
 }
 
 function showOutputEmpty() {
@@ -666,7 +719,7 @@ function showOutputEmpty() {
   outputSkeleton.classList.add('hidden');
   outputContent.classList.add('hidden');
   btnCopyOutput.classList.add('hidden');
-  btnExpandOutput.classList.add('hidden');
+  lastRawOutput = '';
 }
 
 // ─── Live updates from main process ──────────────────────────────────────────
@@ -677,34 +730,45 @@ window.api.onRequestUpdate((data) => {
 
   if (data.status === 'Completed') {
     showOutputContent(data.output || '');
-    // refresh history if open
     if (typeof renderHistory === 'function') renderHistory();
   } else if (data.status === 'Error') {
-    showOutputEmpty();
+    showOutputContent(JSON.stringify({
+      status: 'error',
+      message: data.error_message || 'Request failed.',
+      request_id: data.request_id || currentRequestId
+    }, null, 2));
     if (typeof renderHistory === 'function') renderHistory();
   }
 });
 
 // ─── Copy ────────────────────────────────────────────────────────────────────
-btnCopyOutput.addEventListener('click', async () => {
-  const text = outputContent.innerText;
+btnCopyOutput?.addEventListener('click', async () => {
+  const text = lastRawOutput || '';
+  if (!text.trim()) { showToast('warning', 'Nothing to copy.'); return; }
   try {
     await navigator.clipboard.writeText(text);
-    showToast('success', 'Copied to clipboard');
+    showToast('success', 'Raw response copied');
   } catch {
     showToast('error', 'Copy failed');
   }
 });
 
-// ─── Expand modal ─────────────────────────────────────────────────────────────
-btnExpandOutput.addEventListener('click', () => {
-  modalOutputContent.innerHTML = outputContent.innerHTML;
-  modalExpand.classList.remove('hidden');
+btnCopyResponseId?.addEventListener('click', async () => {
+  const text = responseRequestId?.textContent || '';
+  if (!text || text === '—') { showToast('warning', 'No request ID yet.'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('success', 'Request ID copied');
+  } catch {
+    showToast('error', 'Copy failed');
+  }
 });
-btnCloseModal.addEventListener('click', () => {
+
+// ─── Expand modal (used by History) ──────────────────────────────────────────
+btnCloseModal?.addEventListener('click', () => {
   modalExpand.classList.add('hidden');
 });
-modalExpand.addEventListener('click', (e) => {
+modalExpand?.addEventListener('click', (e) => {
   if (e.target === modalExpand) modalExpand.classList.add('hidden');
 });
 
