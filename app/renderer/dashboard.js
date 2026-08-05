@@ -40,18 +40,23 @@ const statusErrorMsg = document.getElementById('status-error-msg');
 const outputEmpty = document.getElementById('output-empty');
 const outputSkeleton = document.getElementById('output-skeleton');
 const outputContent = document.getElementById('output-content');
-const btnCopyOutput = document.getElementById('btn-copy-output');
 const responseStatusBadge = document.getElementById('response-status-badge');
-const responseMessage = document.getElementById('response-message');
+const responseProcess = document.getElementById('response-process');
 const responseRequestId = document.getElementById('response-request-id');
-const responseRaw = document.getElementById('response-raw');
+const responseScheduleDate = document.getElementById('response-schedule-date');
+const responseCreatedAt = document.getElementById('response-created-at');
+const responseErrorWrap = document.getElementById('response-error-wrap');
+const responseError = document.getElementById('response-error');
+const sheetPollHint = document.getElementById('sheet-poll-hint');
 const btnCopyResponseId = document.getElementById('btn-copy-response-id');
 
 const modalExpand = document.getElementById('modal-expand');
 const modalOutputContent = document.getElementById('modal-output-content');
 const btnCloseModal = document.getElementById('btn-close-modal');
 
-let lastRawOutput = '';
+let sheetPollTimer = null;
+let sheetPollIntervalMs = 300;
+let sheetPolling = false;
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
 customStartPicker = flatpickr('#field-article-start-date', {
@@ -611,7 +616,7 @@ btnSubmit.addEventListener('click', async () => {
 
     currentRequestId = result.request_id;
     updateStatusPanel({ request_id: result.request_id, status: 'Pending' });
-    showOutputSkeleton();
+    await startSheetPolling(result.request_id);
     showToast('success', 'Request submitted successfully');
   } catch (err) {
     showToast('error', 'Submission failed: ' + err.message);
@@ -649,43 +654,12 @@ function updateStatusPanel(data) {
   }
 }
 
-// ─── Workflow Response Panel ─────────────────────────────────────────────────
-function parseWorkflowResponse(raw) {
-  const text = String(raw || '').trim();
-  if (!text) {
-    return {
-      status: 'unknown',
-      message: 'No response body returned.',
-      request_id: currentRequestId || '',
-      raw: ''
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return {
-        status: String(parsed.status || 'success'),
-        message: String(parsed.message || parsed.msg || 'Workflow response received.'),
-        request_id: String(parsed.request_id || currentRequestId || ''),
-        raw: JSON.stringify(parsed, null, 2)
-      };
-    }
-  } catch { /* not JSON */ }
-
-  return {
-    status: 'received',
-    message: text.slice(0, 280),
-    request_id: currentRequestId || '',
-    raw: text
-  };
-}
-
+// ─── Sheet Status Panel ──────────────────────────────────────────────────────
 function statusBadgeClass(status) {
   const value = String(status || '').toLowerCase();
-  if (['success', 'ok', 'completed', 'accepted'].includes(value)) return 'workflow-status-success';
+  if (['success', 'ok', 'completed', 'done', 'finished'].includes(value)) return 'workflow-status-success';
   if (['error', 'failed', 'fail'].includes(value)) return 'workflow-status-error';
-  if (['pending', 'processing', 'progress', 'in_progress', 'running'].includes(value)) return 'workflow-status-progress';
+  if (['pending', 'processing', 'progress', 'in_progress', 'running', 'queued'].includes(value)) return 'workflow-status-progress';
   return 'workflow-status-neutral';
 }
 
@@ -693,33 +667,100 @@ function showOutputSkeleton() {
   outputEmpty.classList.add('hidden');
   outputSkeleton.classList.remove('hidden');
   outputContent.classList.add('hidden');
-  btnCopyOutput.classList.add('hidden');
 }
 
-function showOutputContent(raw) {
-  const parsed = parseWorkflowResponse(raw);
-  lastRawOutput = parsed.raw || String(raw || '');
-
+function showSheetStatus(run) {
   outputSkeleton.classList.add('hidden');
   outputEmpty.classList.add('hidden');
   outputContent.classList.remove('hidden');
-  btnCopyOutput.classList.remove('hidden');
 
+  const status = run?.status || 'unknown';
   if (responseStatusBadge) {
-    responseStatusBadge.textContent = parsed.status;
-    responseStatusBadge.className = 'workflow-status-badge ' + statusBadgeClass(parsed.status);
+    responseStatusBadge.textContent = status;
+    responseStatusBadge.className = 'workflow-status-badge ' + statusBadgeClass(status);
   }
-  if (responseMessage) responseMessage.textContent = parsed.message;
-  if (responseRequestId) responseRequestId.textContent = parsed.request_id || '—';
-  if (responseRaw) responseRaw.textContent = lastRawOutput;
+  if (responseProcess) responseProcess.textContent = run?.process ? `Process: ${run.process}` : '';
+  if (responseRequestId) responseRequestId.textContent = run?.req_id || currentRequestId || '—';
+  if (responseScheduleDate) responseScheduleDate.textContent = run?.schedule_date || '—';
+  if (responseCreatedAt) responseCreatedAt.textContent = run?.created_at || '—';
+
+  if (run?.error) {
+    responseErrorWrap?.classList.remove('hidden');
+    if (responseError) responseError.textContent = run.error;
+  } else {
+    responseErrorWrap?.classList.add('hidden');
+  }
+}
+
+function showSheetWaiting(message) {
+  outputSkeleton.classList.add('hidden');
+  outputContent.classList.add('hidden');
+  outputEmpty.classList.remove('hidden');
+  const title = outputEmpty?.querySelector('p.text-muted.text-sm');
+  if (title) title.textContent = message || 'Waiting for this req_id to appear in Google Sheet…';
 }
 
 function showOutputEmpty() {
   outputEmpty.classList.remove('hidden');
   outputSkeleton.classList.add('hidden');
   outputContent.classList.add('hidden');
-  btnCopyOutput.classList.add('hidden');
-  lastRawOutput = '';
+  if (sheetPollHint) sheetPollHint.textContent = 'Waiting for request…';
+  stopSheetPolling();
+}
+
+async function refreshSheetPollInterval() {
+  try {
+    const cfg = await window.api.configGet();
+    const value = Number(cfg.sheets_poll_interval_ms);
+    sheetPollIntervalMs = Number.isFinite(value) && value >= 300 ? value : 300;
+  } catch {
+    sheetPollIntervalMs = 300;
+  }
+}
+
+async function pollActiveSheetStatus({ force = false } = {}) {
+  if (!currentRequestId || sheetPolling) return;
+  sheetPolling = true;
+  try {
+    const result = await window.api.sheetsGetRun({ reqId: currentRequestId, force });
+    if (!currentRequestId) return;
+
+    if (!result.success) {
+      if (sheetPollHint) sheetPollHint.textContent = 'Sheet error';
+      showSheetWaiting(result.message || 'Unable to read Google Sheet.');
+      return;
+    }
+
+    if (!result.run) {
+      if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
+      showSheetWaiting('Request submitted. Waiting for sheet row…');
+      return;
+    }
+
+    if (sheetPollHint) sheetPollHint.textContent = `Live · every ${sheetPollIntervalMs}ms`;
+    showSheetStatus(result.run);
+  } finally {
+    sheetPolling = false;
+  }
+}
+
+function stopSheetPolling() {
+  if (sheetPollTimer) {
+    clearInterval(sheetPollTimer);
+    sheetPollTimer = null;
+  }
+}
+
+async function startSheetPolling(requestId) {
+  stopSheetPolling();
+  currentRequestId = requestId;
+  await refreshSheetPollInterval();
+  showOutputSkeleton();
+  if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
+  await pollActiveSheetStatus({ force: true });
+  sheetPollTimer = setInterval(() => {
+    pollActiveSheetStatus({ force: false });
+  }, sheetPollIntervalMs);
 }
 
 // ─── Live updates from main process ──────────────────────────────────────────
@@ -728,28 +769,19 @@ window.api.onRequestUpdate((data) => {
 
   updateStatusPanel(data);
 
-  if (data.status === 'Completed') {
-    showOutputContent(data.output || '');
+  if (data.status === 'Completed' || data.status === 'Processing' || data.status === 'Pending') {
+    // Sheet becomes source of truth for process/status; keep local app state badge updated.
     if (typeof renderHistory === 'function') renderHistory();
   } else if (data.status === 'Error') {
-    showOutputContent(JSON.stringify({
+    showSheetStatus({
+      req_id: data.request_id || currentRequestId,
       status: 'error',
-      message: data.error_message || 'Request failed.',
-      request_id: data.request_id || currentRequestId
-    }, null, 2));
+      process: '',
+      schedule_date: '',
+      created_at: '',
+      error: data.error_message || 'Request failed.'
+    });
     if (typeof renderHistory === 'function') renderHistory();
-  }
-});
-
-// ─── Copy ────────────────────────────────────────────────────────────────────
-btnCopyOutput?.addEventListener('click', async () => {
-  const text = lastRawOutput || '';
-  if (!text.trim()) { showToast('warning', 'Nothing to copy.'); return; }
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast('success', 'Raw response copied');
-  } catch {
-    showToast('error', 'Copy failed');
   }
 });
 

@@ -74,6 +74,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           History
         </a>
+        <a href="#" class="nav-item" data-screen="runs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          Runs
+        </a>
       </nav>
       <div class="px-3 pb-6">
         <a href="#" class="nav-item text-muted" data-screen="settings">
@@ -197,18 +201,15 @@
                 </div>
               </div>
 
-              <!-- Workflow Response Card -->
+              <!-- Sheet Status Card -->
               <div class="card space-y-3 flex flex-col" style="min-height: 260px;" id="response-card">
                 <div class="flex items-center justify-between">
-                  <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">Workflow Response</h2>
-                  <button id="btn-copy-output" class="btn-ghost text-xs hidden" title="Copy raw response">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    Copy Raw
-                  </button>
+                  <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">Sheet Status</h2>
+                  <span id="sheet-poll-hint" class="text-xs text-muted">Waiting for request…</span>
                 </div>
                 <div id="output-empty" class="flex-1 flex flex-col items-center justify-center text-center gap-2 px-4">
-                  <p class="text-muted text-sm">Submit a request to see the workflow acknowledgment here.</p>
-                  <p class="text-xs text-muted">Full responses stay available in History.</p>
+                  <p class="text-muted text-sm">Submit a request to track live status from Google Sheet.</p>
+                  <p class="text-xs text-muted">Matched by req_id · polled while active.</p>
                 </div>
                 <div id="output-skeleton" class="hidden flex-1 flex flex-col justify-center space-y-3">
                   <div class="skeleton h-8 w-28 rounded-full"></div>
@@ -218,11 +219,11 @@
                 </div>
                 <div id="output-content" class="hidden flex-1 animate-fadein">
                   <div class="workflow-response">
-                    <div class="workflow-response-status-row">
+                    <div class="workflow-response-status-row gap-2 flex-wrap">
                       <span id="response-status-badge" class="workflow-status-badge">—</span>
+                      <span id="response-process" class="text-xs text-slate-400"></span>
                     </div>
-                    <p id="response-message" class="workflow-response-message">—</p>
-                    <div class="workflow-response-meta">
+                    <div class="workflow-response-meta space-y-2">
                       <div class="workflow-response-meta-row">
                         <span class="text-xs text-muted">Request ID</span>
                         <button type="button" id="btn-copy-response-id" class="workflow-response-id" title="Copy request ID">
@@ -230,17 +231,47 @@
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         </button>
                       </div>
+                      <div class="workflow-response-meta-row">
+                        <span class="text-xs text-muted">Schedule date</span>
+                        <span id="response-schedule-date" class="text-xs text-slate-300">—</span>
+                      </div>
+                      <div class="workflow-response-meta-row">
+                        <span class="text-xs text-muted">Created at</span>
+                        <span id="response-created-at" class="text-xs text-slate-300">—</span>
+                      </div>
                     </div>
-                    <details class="workflow-response-raw">
-                      <summary>Raw response</summary>
-                      <pre id="response-raw" class="workflow-response-raw-pre"></pre>
-                    </details>
+                    <div id="response-error-wrap" class="hidden">
+                      <p class="text-xs text-danger bg-danger/10 px-3 py-2 rounded-lg" id="response-error">—</p>
+                    </div>
+                    <p id="sheet-status-note" class="text-xs text-muted">Live from Google Sheet · Runs</p>
                   </div>
                 </div>
               </div>
 
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Runs Screen -->
+      <section id="screen-runs" class="screen hidden h-full overflow-y-auto px-8 py-8">
+        <div class="max-w-5xl mx-auto space-y-6 animate-fadein">
+          <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
+            <div>
+              <h1 class="text-2xl font-bold text-white">Runs</h1>
+              <p class="text-muted text-sm mt-1">10 latest workflow runs from Google Sheet.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="runs-poll-hint" class="text-xs text-muted"></span>
+              <button id="btn-refresh-runs" class="btn-ghost text-xs">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <div id="runs-list" class="space-y-3"></div>
+          <div id="runs-empty" class="hidden text-center text-muted py-16 text-sm">No runs found.</div>
+          <div id="runs-error" class="hidden text-sm text-danger bg-danger/10 px-4 py-3 rounded-xl"></div>
         </div>
       </section>
 
@@ -308,6 +339,34 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Test Webhook
             </button>
+          </div>
+
+          <!-- Google Sheets -->
+          <div class="card space-y-4">
+            <h2 class="settings-section-title">Google Sheets</h2>
+            <p class="text-xs text-muted -mt-1">Used to poll live run status (req_id match) and the Runs menu. Share the sheet with your service account email.</p>
+            <div>
+              <label class="field-label">Service Account JSON<span class="hint-icon" data-hint="Upload a Google Cloud service account key JSON with Sheets read access. The file is copied into the app userData folder.">?</span></label>
+              <div class="flex gap-2 flex-wrap items-center">
+                <button type="button" id="btn-pick-sheets-sa" class="btn-ghost text-sm">Choose JSON…</button>
+                <span id="cfg-sheets-sa-path" class="text-xs text-muted font-mono break-all">No file selected</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="sm:col-span-2">
+                <label class="field-label">Spreadsheet ID</label>
+                <input id="cfg-sheets-spreadsheet-id" type="text" class="field-input" placeholder="Spreadsheet ID from Google Sheets URL" />
+              </div>
+              <div>
+                <label class="field-label">Tab name</label>
+                <input id="cfg-sheets-tab-name" type="text" class="field-input" placeholder="Runs" />
+              </div>
+              <div>
+                <label class="field-label">Poll interval (ms)<span class="hint-icon" data-hint="How often to refresh sheet status for the active request and the Runs menu. Minimum 300ms.">?</span></label>
+                <input id="cfg-sheets-poll-interval" type="number" class="field-input" min="300" step="100" placeholder="300" />
+              </div>
+            </div>
+            <button type="button" id="btn-test-sheets" class="btn-ghost text-sm">Test Sheets Connection</button>
           </div>
 
           <!-- AI -->
@@ -497,12 +556,24 @@
         </div>
       </div>
 
+      <!-- Run Details Modal -->
+      <div id="modal-run-details" class="modal-backdrop hidden">
+        <div class="modal-box" style="max-width:560px;">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-white">Run Details</h3>
+            <button id="btn-close-run-details" class="btn-ghost text-xs">Close</button>
+          </div>
+          <div id="run-details-content" class="space-y-3 text-sm"></div>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="dashboard.js"></script>
   <script src="history.js"></script>
+  <script src="runs.js"></script>
   <script src="settings.js"></script>
   <script src="animations.js"></script>
 </body>

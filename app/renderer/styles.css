@@ -366,6 +366,15 @@
   word-break: break-word;
 }
 
+.run-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .run-detail-grid { grid-template-columns: 1fr 1fr; }
+}
+
 /* ─── Datetime Picker Wrap ───────────────────────────────────────────────── */
 .datetime-wrap {
   position: relative;

@@ -24,7 +24,11 @@ const defaults = {
   social_accounts: [],
   meta_system_user_token: '',
   meta_app_secret: '',
-  meta_graph_version: 'v21.0'
+  meta_graph_version: 'v21.0',
+  sheets_spreadsheet_id: '12KZ6emJQJyVKUpnGAdYXHuGmgWJ4k2TWQwlE7vA1f8Y',
+  sheets_tab_name: 'Runs',
+  sheets_poll_interval_ms: 300,
+  sheets_service_account_path: ''
 };
 
 /** Legacy path used during development before userData migration. */

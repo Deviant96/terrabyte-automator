@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -58,6 +58,7 @@ const db = require('./database');
 const webhook = require('./webhook');
 const config = require('./config');
 const meta = require('./meta');
+const sheets = require('./sheets');
 
 // Window controls
 ipcMain.on('window-minimize', () => mainWindow && mainWindow.minimize());
@@ -72,6 +73,15 @@ ipcMain.on('window-close', () => mainWindow.close());
 ipcMain.handle('config-get', () => config.getAll());
 ipcMain.handle('config-set', (_, data) => {
   config.setAll(data);
+  if (
+    data &&
+    (Object.prototype.hasOwnProperty.call(data, 'sheets_spreadsheet_id') ||
+      Object.prototype.hasOwnProperty.call(data, 'sheets_tab_name') ||
+      Object.prototype.hasOwnProperty.call(data, 'sheets_service_account_path') ||
+      Object.prototype.hasOwnProperty.call(data, 'sheets_poll_interval_ms'))
+  ) {
+    sheets.clearCache();
+  }
   return true;
 });
 
@@ -124,7 +134,6 @@ ipcMain.handle('request-clear-all', () => {
 
 // DB export
 ipcMain.handle('db-export', async () => {
-  const { dialog } = require('electron');
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Export History',
     defaultPath: `terrabyte_history_${Date.now()}.json`,
@@ -151,4 +160,54 @@ ipcMain.handle('meta-sync-accounts', async (_, payload = {}) => {
     graphVersion: payload.graphVersion,
     persist: payload.persist !== false
   });
+});
+
+// Google Sheets runs
+ipcMain.handle('sheets-get-latest', async (_, payload = {}) => {
+  try {
+    const limit = Number(payload.limit) || 10;
+    const force = !!payload.force;
+    const runs = await sheets.getLatestRuns(limit, { force });
+    return { success: true, runs };
+  } catch (err) {
+    return { success: false, message: err.message || 'Failed to fetch runs.', runs: [] };
+  }
+});
+
+ipcMain.handle('sheets-get-run', async (_, payload = {}) => {
+  try {
+    const run = await sheets.getRunByReqId(payload.reqId, { force: !!payload.force });
+    return { success: true, run };
+  } catch (err) {
+    return { success: false, message: err.message || 'Failed to fetch run.', run: null };
+  }
+});
+
+ipcMain.handle('sheets-test', async () => {
+  try {
+    return await sheets.testConnection();
+  } catch (err) {
+    return { success: false, message: err.message || 'Sheets connection failed.' };
+  }
+});
+
+ipcMain.handle('sheets-pick-service-account', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Google Service Account JSON',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { success: false, canceled: true };
+  }
+  try {
+    const dest = await sheets.saveServiceAccountJson(result.filePaths[0]);
+    return { success: true, path: dest };
+  } catch (err) {
+    return { success: false, message: err.message || 'Failed to save service account file.' };
+  }
+});
+
+ipcMain.handle('sheets-get-service-account-path', () => {
+  return sheets.getServiceAccountPath();
 });

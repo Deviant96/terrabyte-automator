@@ -39,6 +39,14 @@ function applySettingsToForm(cfg) {
   setValue('cfg-meta-system-user-token', cfg.meta_system_user_token || '');
   setValue('cfg-meta-app-secret', cfg.meta_app_secret || '');
   setValue('cfg-meta-graph-version', cfg.meta_graph_version || 'v21.0');
+  setValue('cfg-sheets-spreadsheet-id', cfg.sheets_spreadsheet_id || '');
+  setValue('cfg-sheets-tab-name', cfg.sheets_tab_name || 'Runs');
+  setValue('cfg-sheets-poll-interval', cfg.sheets_poll_interval_ms ?? 300);
+
+  const saPathEl = document.getElementById('cfg-sheets-sa-path');
+  if (saPathEl) {
+    saPathEl.textContent = cfg.sheets_service_account_path || 'No file selected';
+  }
 
   setToggle('cfg-dark-mode', cfg.dark_mode !== false);
   setToggle('cfg-animations', cfg.animations_enabled !== false);
@@ -326,12 +334,40 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     social_accounts: socialAccounts,
     meta_system_user_token: document.getElementById('cfg-meta-system-user-token')?.value.trim() || '',
     meta_app_secret: document.getElementById('cfg-meta-app-secret')?.value.trim() || '',
-    meta_graph_version: document.getElementById('cfg-meta-graph-version')?.value.trim() || 'v21.0'
+    meta_graph_version: document.getElementById('cfg-meta-graph-version')?.value.trim() || 'v21.0',
+    sheets_spreadsheet_id: document.getElementById('cfg-sheets-spreadsheet-id')?.value.trim() || '',
+    sheets_tab_name: document.getElementById('cfg-sheets-tab-name')?.value.trim() || 'Runs',
+    sheets_poll_interval_ms: Math.max(300, parseInt(document.getElementById('cfg-sheets-poll-interval')?.value, 10) || 300)
   };
 
   await window.api.configSet(data);
   settingsCache = { ...settingsCache, ...data };
   showToast('success', 'Settings saved');
+});
+
+document.getElementById('btn-pick-sheets-sa')?.addEventListener('click', async () => {
+  const result = await window.api.sheetsPickServiceAccount();
+  if (result.canceled) return;
+  if (!result.success) {
+    showToast('error', result.message || 'Failed to import service account JSON.');
+    return;
+  }
+  const saPathEl = document.getElementById('cfg-sheets-sa-path');
+  if (saPathEl) saPathEl.textContent = result.path;
+  settingsCache.sheets_service_account_path = result.path;
+  showToast('success', 'Service account JSON saved');
+});
+
+document.getElementById('btn-test-sheets')?.addEventListener('click', async () => {
+  await window.api.configSet({
+    sheets_spreadsheet_id: document.getElementById('cfg-sheets-spreadsheet-id')?.value.trim() || '',
+    sheets_tab_name: document.getElementById('cfg-sheets-tab-name')?.value.trim() || 'Runs',
+    sheets_poll_interval_ms: Math.max(300, parseInt(document.getElementById('cfg-sheets-poll-interval')?.value, 10) || 300)
+  });
+  showToast('info', 'Testing Google Sheets…');
+  const result = await window.api.sheetsTest();
+  if (result.success) showToast('success', result.message);
+  else showToast('error', result.message || 'Sheets test failed.');
 });
 
 // Test Webhook
