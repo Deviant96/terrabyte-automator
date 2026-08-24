@@ -13,15 +13,40 @@ function send(requestId, payload, mainWindow) {
     return;
   }
 
+  const socialAccounts = Array.isArray(settings.social_accounts)
+    ? settings.social_accounts.map((account) => ({
+        id: account.id || '',
+        platform: account.platform || '',
+        label: account.label || '',
+        account_id: account.account_id || '',
+        access_token: account.access_token || '',
+        // Parent variable: Facebook Page ID (Instagram is linked under its Page)
+        parent: account.page_id || (account.platform === 'facebook' ? (account.account_id || '') : ''),
+        page_id: account.page_id || '',
+        notes: account.notes || '',
+        source: account.source || 'manual'
+      }))
+    : [];
+
+  const keywords = Array.isArray(payload.keywords)
+    ? payload.keywords.map((k) => String(k || '').trim()).filter(Boolean)
+    : String(payload.keyword || '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
   const body = JSON.stringify({
     request_id: requestId,
     prompt: payload.prompt,
-    keyword: payload.keyword || '',
-    urgent: !!payload.urgent,
+    keywords,
+    platform: payload.platform || '',
     schedule_date: payload.schedule_date || '',
+    schedule_dates: Array.isArray(payload.schedule_dates) ? payload.schedule_dates : [],
     article_schedule_time: payload.article_schedule_time || '',
     article_schedule_week: payload.article_schedule_week || 'this_week',
-    article_schedule_start_date: payload.article_schedule_start_date || payload.schedule_date || ''
+    article_schedule_start_date: payload.article_schedule_start_date || payload.schedule_date || '',
+    // Parent variable for n8n / downstream posting
+    social_accounts: socialAccounts
   });
 
   let url;
@@ -71,7 +96,7 @@ function send(requestId, payload, mainWindow) {
           status: 'Completed',
           output
         });
-        if (mainWindow) mainWindow.webContents.send('toast', { type: 'success', message: 'AI response completed' });
+        if (mainWindow) mainWindow.webContents.send('toast', { type: 'success', message: 'Workflow acknowledged' });
       } catch (e) {
         db.updateRequest(requestId, { status: 'Error', error_message: e.message });
         if (mainWindow) mainWindow.webContents.send('request-update', { request_id: requestId, status: 'Error', error_message: e.message });

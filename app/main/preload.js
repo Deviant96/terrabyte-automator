@@ -23,6 +23,16 @@ contextBridge.exposeInMainWorld('api', {
   // Webhook
   webhookTest: () => ipcRenderer.invoke('webhook-test'),
 
+  // Meta (Facebook + Instagram token sync)
+  metaSyncAccounts: (payload) => ipcRenderer.invoke('meta-sync-accounts', payload),
+
+  // Google Sheets
+  sheetsGetLatest: (payload) => ipcRenderer.invoke('sheets-get-latest', payload),
+  sheetsGetRun: (payload) => ipcRenderer.invoke('sheets-get-run', payload),
+  sheetsTest: () => ipcRenderer.invoke('sheets-test'),
+  sheetsPickServiceAccount: () => ipcRenderer.invoke('sheets-pick-service-account'),
+  sheetsGetServiceAccountPath: () => ipcRenderer.invoke('sheets-get-service-account-path'),
+
   // Events from main process
   onRequestUpdate: (cb) => ipcRenderer.on('request-update', (_, data) => cb(data)),
   onToast: (cb) => ipcRenderer.on('toast', (_, data) => cb(data))

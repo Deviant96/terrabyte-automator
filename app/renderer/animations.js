@@ -23,6 +23,8 @@ function switchScreen(name) {
   // Load data for specific screens
   if (name === 'history' && typeof loadHistory === 'function') loadHistory();
   if (name === 'settings' && typeof loadSettings === 'function') loadSettings();
+  if (name === 'runs' && typeof startRunsPolling === 'function') startRunsPolling();
+  if (name !== 'runs' && typeof stopRunsPolling === 'function') stopRunsPolling();
 }
 
 // ─── Keyboard shortcut: Ctrl+, opens settings ─────────────────────────────────
@@ -36,7 +38,8 @@ document.addEventListener('keydown', (e) => {
     switchScreen('history');
   }
   if (e.key === 'Escape') {
-    document.getElementById('modal-expand').classList.add('hidden');
+    document.getElementById('modal-expand')?.classList.add('hidden');
+    document.getElementById('modal-run-details')?.classList.add('hidden');
   }
 });
 

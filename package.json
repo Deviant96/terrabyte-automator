@@ -20,8 +20,9 @@
     }
   },
   "dependencies": {
-    "sql.js": "^1.12.0",
-    "marked": "^12.0.0"
+    "googleapis": "^174.0.0",
+    "marked": "^12.0.0",
+    "sql.js": "^1.12.0"
   },
   "devDependencies": {
     "electron": "^30.0.0",

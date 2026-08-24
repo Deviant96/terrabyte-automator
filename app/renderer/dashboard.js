@@ -4,20 +4,30 @@
 // ─── State ──────────────────────────────────────────────────────────────────
 let currentRequestId = null;
 let isSubmitting = false;
-let urgentActive = false;
 let customStartPicker = null;
+let keywords = [];
+let dragKeywordIndex = null;
+const MAX_KEYWORDS = 5;
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const btnSubmit = document.getElementById('btn-submit');
 const btnSubmitText = document.getElementById('btn-submit-text');
 const btnSubmitSpinner = document.getElementById('btn-submit-spinner');
-const toggleUrgent = document.getElementById('toggle-urgent');
-const promptField = document.getElementById('field-prompt');
+const keywordChipBox = document.getElementById('keyword-chip-box');
+const keywordChipsEl = document.getElementById('keyword-chips');
+const keywordInput = document.getElementById('field-keyword-input');
+const keywordCountEl = document.getElementById('keyword-count');
+const keywordHintEl = document.getElementById('keyword-hint');
+const btnKeywordClear = document.getElementById('btn-keyword-clear');
+const btnKeywordCopy = document.getElementById('btn-keyword-copy');
+const btnKeywordPaste = document.getElementById('btn-keyword-paste');
 const scheduleModeField = document.getElementById('field-schedule-mode');
 const weekTimeWrap = document.getElementById('week-time-wrap');
 const weekTimeField = document.getElementById('field-week-time');
 const customScheduleWrap = document.getElementById('custom-schedule-wrap');
 const scheduleHint = document.getElementById('schedule-hint');
+const schedulePreview = document.getElementById('schedule-preview');
+const schedulePreviewList = document.getElementById('schedule-preview-list');
 const btnSetArticleScheduleDefault = document.getElementById('btn-set-article-schedule-default');
 
 const statusEmpty = document.getElementById('status-empty');
@@ -30,12 +40,23 @@ const statusErrorMsg = document.getElementById('status-error-msg');
 const outputEmpty = document.getElementById('output-empty');
 const outputSkeleton = document.getElementById('output-skeleton');
 const outputContent = document.getElementById('output-content');
-const btnCopyOutput = document.getElementById('btn-copy-output');
-const btnExpandOutput = document.getElementById('btn-expand-output');
+const responseStatusBadge = document.getElementById('response-status-badge');
+const responseProcess = document.getElementById('response-process');
+const responseRequestId = document.getElementById('response-request-id');
+const responseScheduleDate = document.getElementById('response-schedule-date');
+const responseCreatedAt = document.getElementById('response-created-at');
+const responseErrorWrap = document.getElementById('response-error-wrap');
+const responseError = document.getElementById('response-error');
+const sheetPollHint = document.getElementById('sheet-poll-hint');
+const btnCopyResponseId = document.getElementById('btn-copy-response-id');
 
 const modalExpand = document.getElementById('modal-expand');
 const modalOutputContent = document.getElementById('modal-output-content');
 const btnCloseModal = document.getElementById('btn-close-modal');
+
+let sheetPollTimer = null;
+let sheetPollIntervalMs = 300;
+let sheetPolling = false;
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
 customStartPicker = flatpickr('#field-article-start-date', {
@@ -138,6 +159,7 @@ function updateScheduleModeUi(mode) {
   weekTimeWrap.classList.toggle('hidden', isCustom);
   customScheduleWrap.classList.toggle('hidden', !isCustom);
   scheduleHint.textContent = scheduleHintsByMode[mode] || scheduleHintsByMode.this_week;
+  updateSchedulePreview();
 }
 
 function applyModeDefaultDate(mode) {
@@ -150,6 +172,7 @@ function applyModeDefaultDate(mode) {
       customStartPicker.setDate(nextDate, true);
     }
   }
+  updateSchedulePreview();
 }
 
 scheduleModeField.addEventListener('change', () => {
@@ -158,8 +181,14 @@ scheduleModeField.addEventListener('change', () => {
   applyModeDefaultDate(mode);
 });
 
+weekTimeField?.addEventListener('input', updateSchedulePreview);
+weekTimeField?.addEventListener('change', updateSchedulePreview);
+
 if (customStartPicker?.config?.onChange) {
-  customStartPicker.config.onChange.push(() => updateScheduleModeUi(scheduleModeField.value));
+  customStartPicker.config.onChange.push(() => {
+    updateScheduleModeUi(scheduleModeField.value);
+    updateSchedulePreview();
+  });
 }
 
 async function applyScheduleDefaults() {
@@ -213,62 +242,344 @@ async function saveCurrentScheduleAsDefault() {
   showToast('success', 'Default article schedule saved');
 }
 
-applyScheduleDefaults();
+applyScheduleDefaults().then(() => {
+  updateSubmitEnabled();
+  updateSchedulePreview();
+});
 
 btnSetArticleScheduleDefault?.addEventListener('click', saveCurrentScheduleAsDefault);
 
-// ─── Prompt action buttons ───────────────────────────────────────────────────
-document.getElementById('btn-prompt-clear').addEventListener('click', () => {
-  promptField.value = '';
-  promptField.focus();
+// ─── Keyword chips ───────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function normalizeKeyword(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function parseKeywordChunks(raw) {
+  return String(raw || '')
+    .split(/[,\n]+/)
+    .map(normalizeKeyword)
+    .filter(Boolean);
+}
+
+function updateKeywordMeta() {
+  if (keywordCountEl) keywordCountEl.textContent = `${keywords.length} / ${MAX_KEYWORDS}`;
+  if (keywordChipBox) keywordChipBox.classList.toggle('is-full', keywords.length >= MAX_KEYWORDS);
+  if (keywordHintEl) {
+    if (keywords.length === MAX_KEYWORDS) {
+      keywordHintEl.textContent = '5 keywords ready. Drag to reorder · double-click to edit.';
+    } else {
+      keywordHintEl.textContent = `Exactly 5 keywords required to submit. (${MAX_KEYWORDS - keywords.length} remaining)`;
+    }
+  }
+  if (keywordInput) {
+    keywordInput.disabled = keywords.length >= MAX_KEYWORDS;
+    keywordInput.placeholder = keywords.length >= MAX_KEYWORDS
+      ? 'Maximum 5 keywords reached'
+      : 'Type a keyword, then comma or Enter...';
+  }
+  updateSubmitEnabled();
+  updateSchedulePreview();
+}
+
+function updateSubmitEnabled() {
+  if (!btnSubmit) return;
+  const canSubmit = !isSubmitting && keywords.length === MAX_KEYWORDS;
+  btnSubmit.disabled = !canSubmit;
+}
+
+function renderKeywordChips() {
+  if (!keywordChipsEl) return;
+  keywordChipsEl.innerHTML = '';
+
+  keywords.forEach((keyword, index) => {
+    const chip = document.createElement('div');
+    chip.className = 'keyword-chip';
+    chip.draggable = true;
+    chip.dataset.index = String(index);
+    chip.innerHTML = `
+      <span class="keyword-chip-label" title="${escapeHtml(keyword)}">${escapeHtml(keyword)}</span>
+      <button type="button" class="keyword-chip-remove" title="Remove" aria-label="Remove keyword">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+
+    chip.querySelector('.keyword-chip-remove')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      keywords.splice(index, 1);
+      renderKeywordChips();
+    });
+
+    chip.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startKeywordEdit(index, chip);
+    });
+
+    chip.addEventListener('dragstart', (e) => {
+      dragKeywordIndex = index;
+      chip.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    });
+
+    chip.addEventListener('dragend', () => {
+      dragKeywordIndex = null;
+      chip.classList.remove('is-dragging');
+      keywordChipsEl.querySelectorAll('.keyword-chip').forEach((el) => el.classList.remove('is-drag-over'));
+    });
+
+    chip.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      chip.classList.add('is-drag-over');
+    });
+
+    chip.addEventListener('dragleave', () => {
+      chip.classList.remove('is-drag-over');
+    });
+
+    chip.addEventListener('drop', (e) => {
+      e.preventDefault();
+      chip.classList.remove('is-drag-over');
+      const from = dragKeywordIndex;
+      const to = index;
+      if (from === null || from === to) return;
+      const [moved] = keywords.splice(from, 1);
+      keywords.splice(to, 0, moved);
+      renderKeywordChips();
+    });
+
+    keywordChipsEl.appendChild(chip);
+  });
+
+  updateKeywordMeta();
+}
+
+function startKeywordEdit(index, chipEl) {
+  const current = keywords[index];
+  if (current == null) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'keyword-chip-edit';
+  input.value = current;
+  let finished = false;
+
+  const finish = (commit) => {
+    if (finished) return;
+    finished = true;
+    if (commit) {
+      const next = normalizeKeyword(input.value);
+      if (!next) {
+        keywords.splice(index, 1);
+      } else if (keywords.some((k, i) => i !== index && k.toLowerCase() === next.toLowerCase())) {
+        showToast('warning', 'Duplicate keyword.');
+      } else {
+        keywords[index] = next;
+      }
+    }
+    renderKeywordChips();
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener('blur', () => finish(true));
+
+  chipEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function addKeywordsFromRaw(raw, { silentFull = false } = {}) {
+  const chunks = parseKeywordChunks(raw);
+  if (!chunks.length) return 0;
+
+  let added = 0;
+  for (const chunk of chunks) {
+    if (keywords.length >= MAX_KEYWORDS) {
+      if (!silentFull) showToast('warning', 'Maximum 5 keywords allowed.');
+      break;
+    }
+    if (keywords.some((k) => k.toLowerCase() === chunk.toLowerCase())) continue;
+    keywords.push(chunk);
+    added += 1;
+  }
+
+  if (added) renderKeywordChips();
+  return added;
+}
+
+function commitComposerValue() {
+  if (!keywordInput) return;
+  const raw = keywordInput.value;
+  keywordInput.value = '';
+  addKeywordsFromRaw(raw);
+}
+
+keywordChipBox?.addEventListener('click', (e) => {
+  if (e.target === keywordChipBox || e.target === keywordChipsEl) {
+    keywordInput?.focus();
+  }
 });
 
-document.getElementById('btn-prompt-copy').addEventListener('click', async () => {
-  const text = promptField.value;
-  if (!text.trim()) { showToast('warning', 'Nothing to copy.'); return; }
+keywordInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    commitComposerValue();
+    return;
+  }
+  if (e.key === 'Backspace' && !keywordInput.value && keywords.length) {
+    keywords.pop();
+    renderKeywordChips();
+  }
+});
+
+keywordInput?.addEventListener('input', () => {
+  if (!keywordInput.value.includes(',')) return;
+  const parts = keywordInput.value.split(',');
+  const complete = parts.slice(0, -1).join(',');
+  const rest = parts[parts.length - 1];
+  keywordInput.value = rest;
+  addKeywordsFromRaw(complete);
+});
+
+btnKeywordClear?.addEventListener('click', () => {
+  keywords = [];
+  if (keywordInput) keywordInput.value = '';
+  renderKeywordChips();
+  keywordInput?.focus();
+});
+
+btnKeywordCopy?.addEventListener('click', async () => {
+  if (!keywords.length) { showToast('warning', 'Nothing to copy.'); return; }
   try {
-    await navigator.clipboard.writeText(text);
-    showToast('success', 'Prompt copied');
+    await navigator.clipboard.writeText(keywords.join(', '));
+    showToast('success', 'Keywords copied');
   } catch { showToast('error', 'Copy failed'); }
 });
 
-document.getElementById('btn-prompt-paste').addEventListener('click', async () => {
+btnKeywordPaste?.addEventListener('click', async () => {
   try {
     const text = await navigator.clipboard.readText();
-    if (text) {
-      const start = promptField.selectionStart;
-      const end = promptField.selectionEnd;
-      const before = promptField.value.slice(0, start);
-      const after = promptField.value.slice(end);
-      promptField.value = before + text + after;
-      promptField.selectionStart = promptField.selectionEnd = start + text.length;
-      promptField.focus();
+    if (!text) return;
+    const added = addKeywordsFromRaw(text);
+    if (!added && keywords.length >= MAX_KEYWORDS) {
+      showToast('warning', 'Maximum 5 keywords allowed.');
+    } else if (!added) {
+      showToast('warning', 'No new keywords to add.');
     }
+    keywordInput?.focus();
   } catch { showToast('error', 'Paste failed — clipboard access denied.'); }
 });
 
-// ─── Urgent toggle ───────────────────────────────────────────────────────────
-toggleUrgent.addEventListener('click', () => {
-  urgentActive = !urgentActive;
-  toggleUrgent.setAttribute('aria-checked', String(urgentActive));
-});
+// ─── Schedule preview (5 consecutive weekdays) ───────────────────────────────
+function isWeekday(date) {
+  const day = date.getDay();
+  return day !== 0 && day !== 6;
+}
+
+function parseLocalDateTime(value) {
+  if (!value) return null;
+  const parsed = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getScheduleStartDateObj() {
+  const mode = scheduleModeField?.value || 'this_week';
+  const scheduleInput = mode === 'custom_start_date'
+    ? (customStartPicker ? customStartPicker.input.value.trim() : document.getElementById('field-article-start-date')?.value.trim() || '')
+    : (weekTimeField ? weekTimeField.value.trim() : '');
+
+  if (!scheduleInput) return null;
+  const raw = resolveScheduleStartDate(mode, scheduleInput);
+  return parseLocalDateTime(raw);
+}
+
+function buildWeekdayScheduleDates(startDate, count) {
+  if (!startDate) return [];
+  const dates = [];
+  const cursor = new Date(startDate);
+  // Advance off weekend so first slot is a weekday
+  while (!isWeekday(cursor)) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  while (dates.length < count) {
+    if (isWeekday(cursor)) {
+      dates.push(new Date(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+function formatPreviewDate(date) {
+  return date.toLocaleString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+function updateSchedulePreview() {
+  if (!schedulePreview || !schedulePreviewList) return;
+
+  if (!keywords.length) {
+    schedulePreview.classList.add('hidden');
+    schedulePreviewList.innerHTML = '';
+    return;
+  }
+
+  schedulePreview.classList.remove('hidden');
+  const start = getScheduleStartDateObj();
+  const dates = start ? buildWeekdayScheduleDates(start, keywords.length) : [];
+
+  schedulePreviewList.innerHTML = keywords.map((keyword, index) => {
+    const dateLabel = dates[index] ? formatPreviewDate(dates[index]) : 'Set schedule start first';
+    return `
+      <li class="schedule-preview-item">
+        <span class="schedule-preview-index">${index + 1}</span>
+        <span class="schedule-preview-keyword" title="${escapeHtml(keyword)}">${escapeHtml(keyword)}</span>
+        <span class="schedule-preview-date">${escapeHtml(dateLabel)}</span>
+      </li>
+    `;
+  }).join('');
+}
 
 // ─── Submit ──────────────────────────────────────────────────────────────────
 btnSubmit.addEventListener('click', async () => {
   if (isSubmitting) return;
 
-  const prompt = promptField.value.trim();
-  const keyword = document.getElementById('field-keyword').value.trim();
+  if (keywords.length !== MAX_KEYWORDS) {
+    showToast('error', 'Exactly 5 keywords are required.');
+    keywordInput?.focus();
+    return;
+  }
+
+  const keywordsPayload = keywords.slice();
+  const prompt = keywordsPayload.join(', ');
   const articleScheduleTime = scheduleModeField.value || 'this_week';
   const scheduleInput = articleScheduleTime === 'custom_start_date'
     ? (customStartPicker ? customStartPicker.input.value.trim() : document.getElementById('field-article-start-date').value.trim())
     : (weekTimeField ? weekTimeField.value.trim() : '');
-
-  if (!prompt) {
-    showToast('error', 'Prompt is required.');
-    promptField.focus();
-    return;
-  }
 
   if (!scheduleInput) {
     showToast('error', articleScheduleTime === 'custom_start_date' ? 'Schedule date and time is required.' : 'Schedule time is required.');
@@ -276,6 +587,10 @@ btnSubmit.addEventListener('click', async () => {
   }
 
   const scheduleDate = resolveScheduleStartDate(articleScheduleTime, scheduleInput);
+  const startObj = parseLocalDateTime(scheduleDate);
+  const scheduleDates = startObj
+    ? buildWeekdayScheduleDates(startObj, MAX_KEYWORDS).map(formatLocalDateTime)
+    : [];
 
   // Check webhook config
   const cfg = await window.api.configGet();
@@ -290,9 +605,10 @@ btnSubmit.addEventListener('click', async () => {
     const timeValue = articleScheduleTime === 'custom_start_date' ? scheduleDate : (weekTimeField?.value || '');
     const result = await window.api.requestSubmit({
       prompt,
-      keyword,
-      urgent: urgentActive,
+      keywords: keywordsPayload,
+      keyword: keywordsPayload.join(', '),
       schedule_date: scheduleDate,
+      schedule_dates: scheduleDates,
       article_schedule_time: timeValue,
       article_schedule_week: articleScheduleTime,
       article_schedule_start_date: scheduleDate
@@ -300,21 +616,24 @@ btnSubmit.addEventListener('click', async () => {
 
     currentRequestId = result.request_id;
     updateStatusPanel({ request_id: result.request_id, status: 'Pending' });
-    showOutputSkeleton();
+    await startSheetPolling(result.request_id);
     showToast('success', 'Request submitted successfully');
   } catch (err) {
     showToast('error', 'Submission failed: ' + err.message);
   } finally {
     setSubmitting(false);
+    updateSubmitEnabled();
   }
 });
 
 function setSubmitting(state) {
   isSubmitting = state;
-  btnSubmit.disabled = state;
   btnSubmitText.textContent = state ? 'Sending...' : 'Submit Request';
   btnSubmitSpinner.classList.toggle('hidden', !state);
+  updateSubmitEnabled();
 }
+
+renderKeywordChips();
 
 // ─── Status Panel ─────────────────────────────────────────────────────────────
 function updateStatusPanel(data) {
@@ -335,30 +654,113 @@ function updateStatusPanel(data) {
   }
 }
 
-// ─── Output Panel ─────────────────────────────────────────────────────────────
+// ─── Sheet Status Panel ──────────────────────────────────────────────────────
+function statusBadgeClass(status) {
+  const value = String(status || '').toLowerCase();
+  if (['success', 'ok', 'completed', 'done', 'finished'].includes(value)) return 'workflow-status-success';
+  if (['error', 'failed', 'fail'].includes(value)) return 'workflow-status-error';
+  if (['pending', 'processing', 'progress', 'in_progress', 'running', 'queued'].includes(value)) return 'workflow-status-progress';
+  return 'workflow-status-neutral';
+}
+
 function showOutputSkeleton() {
   outputEmpty.classList.add('hidden');
   outputSkeleton.classList.remove('hidden');
   outputContent.classList.add('hidden');
-  btnCopyOutput.classList.add('hidden');
-  btnExpandOutput.classList.add('hidden');
 }
 
-function showOutputContent(md) {
+function showSheetStatus(run) {
   outputSkeleton.classList.add('hidden');
   outputEmpty.classList.add('hidden');
   outputContent.classList.remove('hidden');
-  btnCopyOutput.classList.remove('hidden');
-  btnExpandOutput.classList.remove('hidden');
-  outputContent.innerHTML = marked.parse(md || '');
+
+  const status = run?.status || 'unknown';
+  if (responseStatusBadge) {
+    responseStatusBadge.textContent = status;
+    responseStatusBadge.className = 'workflow-status-badge ' + statusBadgeClass(status);
+  }
+  if (responseProcess) responseProcess.textContent = run?.process ? `Process: ${run.process}` : '';
+  if (responseRequestId) responseRequestId.textContent = run?.req_id || currentRequestId || '—';
+  if (responseScheduleDate) responseScheduleDate.textContent = run?.schedule_date || '—';
+  if (responseCreatedAt) responseCreatedAt.textContent = run?.created_at || '—';
+
+  if (run?.error) {
+    responseErrorWrap?.classList.remove('hidden');
+    if (responseError) responseError.textContent = run.error;
+  } else {
+    responseErrorWrap?.classList.add('hidden');
+  }
+}
+
+function showSheetWaiting(message) {
+  outputSkeleton.classList.add('hidden');
+  outputContent.classList.add('hidden');
+  outputEmpty.classList.remove('hidden');
+  const title = outputEmpty?.querySelector('p.text-muted.text-sm');
+  if (title) title.textContent = message || 'Waiting for this req_id to appear in Google Sheet…';
 }
 
 function showOutputEmpty() {
   outputEmpty.classList.remove('hidden');
   outputSkeleton.classList.add('hidden');
   outputContent.classList.add('hidden');
-  btnCopyOutput.classList.add('hidden');
-  btnExpandOutput.classList.add('hidden');
+  if (sheetPollHint) sheetPollHint.textContent = 'Waiting for request…';
+  stopSheetPolling();
+}
+
+async function refreshSheetPollInterval() {
+  try {
+    const cfg = await window.api.configGet();
+    const value = Number(cfg.sheets_poll_interval_ms);
+    sheetPollIntervalMs = Number.isFinite(value) && value >= 300 ? value : 300;
+  } catch {
+    sheetPollIntervalMs = 300;
+  }
+}
+
+async function pollActiveSheetStatus({ force = false } = {}) {
+  if (!currentRequestId || sheetPolling) return;
+  sheetPolling = true;
+  try {
+    const result = await window.api.sheetsGetRun({ reqId: currentRequestId, force });
+    if (!currentRequestId) return;
+
+    if (!result.success) {
+      if (sheetPollHint) sheetPollHint.textContent = 'Sheet error';
+      showSheetWaiting(result.message || 'Unable to read Google Sheet.');
+      return;
+    }
+
+    if (!result.run) {
+      if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
+      showSheetWaiting('Request submitted. Waiting for sheet row…');
+      return;
+    }
+
+    if (sheetPollHint) sheetPollHint.textContent = `Live · every ${sheetPollIntervalMs}ms`;
+    showSheetStatus(result.run);
+  } finally {
+    sheetPolling = false;
+  }
+}
+
+function stopSheetPolling() {
+  if (sheetPollTimer) {
+    clearInterval(sheetPollTimer);
+    sheetPollTimer = null;
+  }
+}
+
+async function startSheetPolling(requestId) {
+  stopSheetPolling();
+  currentRequestId = requestId;
+  await refreshSheetPollInterval();
+  showOutputSkeleton();
+  if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
+  await pollActiveSheetStatus({ force: true });
+  sheetPollTimer = setInterval(() => {
+    pollActiveSheetStatus({ force: false });
+  }, sheetPollIntervalMs);
 }
 
 // ─── Live updates from main process ──────────────────────────────────────────
@@ -367,36 +769,38 @@ window.api.onRequestUpdate((data) => {
 
   updateStatusPanel(data);
 
-  if (data.status === 'Completed') {
-    showOutputContent(data.output || '');
-    // refresh history if open
+  if (data.status === 'Completed' || data.status === 'Processing' || data.status === 'Pending') {
+    // Sheet becomes source of truth for process/status; keep local app state badge updated.
     if (typeof renderHistory === 'function') renderHistory();
   } else if (data.status === 'Error') {
-    showOutputEmpty();
+    showSheetStatus({
+      req_id: data.request_id || currentRequestId,
+      status: 'error',
+      process: '',
+      schedule_date: '',
+      created_at: '',
+      error: data.error_message || 'Request failed.'
+    });
     if (typeof renderHistory === 'function') renderHistory();
   }
 });
 
-// ─── Copy ────────────────────────────────────────────────────────────────────
-btnCopyOutput.addEventListener('click', async () => {
-  const text = outputContent.innerText;
+btnCopyResponseId?.addEventListener('click', async () => {
+  const text = responseRequestId?.textContent || '';
+  if (!text || text === '—') { showToast('warning', 'No request ID yet.'); return; }
   try {
     await navigator.clipboard.writeText(text);
-    showToast('success', 'Copied to clipboard');
+    showToast('success', 'Request ID copied');
   } catch {
     showToast('error', 'Copy failed');
   }
 });
 
-// ─── Expand modal ─────────────────────────────────────────────────────────────
-btnExpandOutput.addEventListener('click', () => {
-  modalOutputContent.innerHTML = outputContent.innerHTML;
-  modalExpand.classList.remove('hidden');
-});
-btnCloseModal.addEventListener('click', () => {
+// ─── Expand modal (used by History) ──────────────────────────────────────────
+btnCloseModal?.addEventListener('click', () => {
   modalExpand.classList.add('hidden');
 });
-modalExpand.addEventListener('click', (e) => {
+modalExpand?.addEventListener('click', (e) => {
   if (e.target === modalExpand) modalExpand.classList.add('hidden');
 });
 

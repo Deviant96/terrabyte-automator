@@ -64,6 +64,9 @@ function migrate() {
   if (!columns.some((column) => column.name === 'article_schedule_start_date')) {
     db.run("ALTER TABLE requests ADD COLUMN article_schedule_start_date TEXT DEFAULT ''");
   }
+  if (!columns.some((column) => column.name === 'platform')) {
+    db.run("ALTER TABLE requests ADD COLUMN platform TEXT DEFAULT ''");
+  }
 
   persist();
 }
@@ -86,10 +89,10 @@ function get(sql, params) { return all(sql, params)[0] || null; }
 
 function insertRequest(record) {
   sqlRun(`INSERT OR REPLACE INTO requests
-    (request_id, prompt, keyword, urgent, schedule_date, article_schedule_time, article_schedule_week, article_schedule_start_date, status, output, error_message, created_at, updated_at)
-    VALUES (:request_id,:prompt,:keyword,:urgent,:schedule_date,:article_schedule_time,:article_schedule_week,:article_schedule_start_date,:status,:output,:error_message,:created_at,:updated_at)`,
+    (request_id, prompt, keyword, platform, schedule_date, article_schedule_time, article_schedule_week, article_schedule_start_date, status, output, error_message, created_at, updated_at)
+    VALUES (:request_id,:prompt,:keyword,:platform,:schedule_date,:article_schedule_time,:article_schedule_week,:article_schedule_start_date,:status,:output,:error_message,:created_at,:updated_at)`,
     { ':request_id':record.request_id,':prompt':record.prompt,':keyword':record.keyword||'',
-      ':urgent':record.urgent||0,':schedule_date':record.schedule_date||'',
+      ':platform':record.platform||'',':schedule_date':record.schedule_date||'',
       ':article_schedule_time':record.article_schedule_time||'',':article_schedule_week':record.article_schedule_week||'this_week',':article_schedule_start_date':record.article_schedule_start_date||record.schedule_date||'',
       ':status':record.status||'Pending',':output':record.output||'',':error_message':record.error_message||'',
       ':created_at':record.created_at,':updated_at':record.updated_at });
