@@ -25,6 +25,7 @@ function switchScreen(name) {
   if (name === 'settings' && typeof loadSettings === 'function') loadSettings();
   if (name === 'runs' && typeof startRunsPolling === 'function') startRunsPolling();
   if (name !== 'runs' && typeof stopRunsPolling === 'function') stopRunsPolling();
+  if (name === 'sheet-editor' && typeof loadSheetEditor === 'function') loadSheetEditor();
 }
 
 // ─── Keyboard shortcut: Ctrl+, opens settings ─────────────────────────────────
@@ -38,6 +39,7 @@ document.addEventListener('keydown', (e) => {
     switchScreen('history');
   }
   if (e.key === 'Escape') {
+    if (typeof sheetEditorHandleEscape === 'function' && sheetEditorHandleEscape()) return;
     document.getElementById('modal-expand')?.classList.add('hidden');
     document.getElementById('modal-run-details')?.classList.add('hidden');
   }

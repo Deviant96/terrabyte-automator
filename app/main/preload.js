@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('api', {
   sheetsTest: () => ipcRenderer.invoke('sheets-test'),
   sheetsPickServiceAccount: () => ipcRenderer.invoke('sheets-pick-service-account'),
   sheetsGetServiceAccountPath: () => ipcRenderer.invoke('sheets-get-service-account-path'),
+  sheetsEditorTabs: () => ipcRenderer.invoke('sheets-editor-tabs'),
+  sheetsEditorLoad: (payload) => ipcRenderer.invoke('sheets-editor-load', payload),
+  sheetsEditorUpdateCell: (payload) => ipcRenderer.invoke('sheets-editor-update-cell', payload),
 
   // Events from main process
   onRequestUpdate: (cb) => ipcRenderer.on('request-update', (_, data) => cb(data)),

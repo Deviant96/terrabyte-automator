@@ -7,6 +7,13 @@ const { app } = require('electron');
 const config = require('./config');
 
 const REQUIRED_COLUMNS = ['req_id', 'created_at', 'schedule_date', 'process', 'status', 'error'];
+const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const EDITOR_MAX_ROWS = 400;
+const EDITOR_MAX_COLS = 40;
+const EDITOR_MIN_ROWS = 20;
+const EDITOR_MIN_COLS = 8;
+const EDITOR_EXTRA_ROWS = 12;
+const EDITOR_EXTRA_COLS = 4;
 
 let cachedAuth = null;
 let cachedAuthKey = '';
@@ -48,7 +55,6 @@ async function getAuthClient() {
   }
 
   const key = fs.readFileSync(keyPath, 'utf8');
-  if (cachedAuth && cachedAuthKey === key) return cachedAuth;
 
   let credentials;
   try {
@@ -57,14 +63,170 @@ async function getAuthClient() {
     throw new Error('Invalid Google Service Account JSON file.');
   }
 
+  const cacheKey = `${key}::${SHEETS_SCOPE}`;
+  if (cachedAuth && cachedAuthKey === cacheKey) return cachedAuth;
+
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    scopes: [SHEETS_SCOPE]
   });
 
   cachedAuth = await auth.getClient();
-  cachedAuthKey = key;
+  cachedAuthKey = cacheKey;
   return cachedAuth;
+}
+
+function getSpreadsheetId() {
+  const spreadsheetId = (config.getAll().sheets_spreadsheet_id || '').trim();
+  if (!spreadsheetId) {
+    throw new Error('Google Spreadsheet ID is not configured.');
+  }
+  return spreadsheetId;
+}
+
+function quoteSheetName(name) {
+  return `'${String(name || '').replace(/'/g, "''")}'`;
+}
+
+function colIndexToA1(index) {
+  let n = Number(index) + 1;
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  let label = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    label = String.fromCharCode(65 + rem) + label;
+    n = Math.floor((n - 1) / 26);
+  }
+  return label;
+}
+
+function cellA1(rowIndex, colIndex) {
+  return `${colIndexToA1(colIndex)}${Number(rowIndex) + 1}`;
+}
+
+function friendlySheetsError(err) {
+  const message = String(err?.message || err || 'Google Sheets request failed.');
+  const status = err?.code || err?.response?.status;
+  if (status === 403 || /insufficient|permission|forbidden/i.test(message)) {
+    return 'The service account cannot edit this spreadsheet. Share it with the service account email as Editor (not Viewer).';
+  }
+  return message;
+}
+
+async function getSheetsClient() {
+  const auth = await getAuthClient();
+  return google.sheets({ version: 'v4', auth });
+}
+
+async function listTabs() {
+  const spreadsheetId = getSpreadsheetId();
+  const sheetsApi = await getSheetsClient();
+  const response = await sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: 'properties.title,spreadsheetId,sheets.properties(sheetId,title,index,gridProperties)'
+  });
+
+  const tabs = (response.data.sheets || []).map((sheet) => ({
+    title: sheet.properties?.title || '',
+    sheetId: sheet.properties?.sheetId,
+    index: sheet.properties?.index || 0,
+    rowCount: sheet.properties?.gridProperties?.rowCount || 0,
+    columnCount: sheet.properties?.gridProperties?.columnCount || 0
+  })).filter((tab) => tab.title);
+
+  return {
+    spreadsheetId,
+    title: response.data.properties?.title || '',
+    tabs
+  };
+}
+
+function padGrid(values) {
+  const rows = Array.isArray(values) ? values.map((row) => (Array.isArray(row) ? row : [])) : [];
+  const usedRows = rows.length;
+  const usedCols = rows.reduce((max, row) => Math.max(max, row.length), 0);
+
+  const rowCount = Math.min(
+    EDITOR_MAX_ROWS,
+    Math.max(EDITOR_MIN_ROWS, usedRows + EDITOR_EXTRA_ROWS)
+  );
+  const colCount = Math.min(
+    EDITOR_MAX_COLS,
+    Math.max(EDITOR_MIN_COLS, usedCols + EDITOR_EXTRA_COLS)
+  );
+
+  const grid = [];
+  for (let r = 0; r < rowCount; r += 1) {
+    const source = rows[r] || [];
+    const next = [];
+    for (let c = 0; c < colCount; c += 1) {
+      next.push(source[c] == null ? '' : String(source[c]));
+    }
+    grid.push(next);
+  }
+
+  return {
+    values: grid,
+    usedRows,
+    usedCols,
+    rowCount,
+    colCount,
+    truncatedRows: usedRows > EDITOR_MAX_ROWS,
+    truncatedCols: usedCols > EDITOR_MAX_COLS
+  };
+}
+
+async function getSheetGrid(sheetName) {
+  const spreadsheetId = getSpreadsheetId();
+  const name = String(sheetName || '').trim();
+  if (!name) throw new Error('Sheet tab name is required.');
+
+  const sheetsApi = await getSheetsClient();
+  const response = await sheetsApi.spreadsheets.values.get({
+    spreadsheetId,
+    range: quoteSheetName(name),
+    majorDimension: 'ROWS',
+    valueRenderOption: 'FORMATTED_VALUE',
+    dateTimeRenderOption: 'FORMATTED_STRING'
+  });
+
+  const padded = padGrid(response.data.values || []);
+  return {
+    spreadsheetId,
+    sheetName: name,
+    ...padded
+  };
+}
+
+async function updateSheetCell({ sheetName, row, col, value }) {
+  const spreadsheetId = getSpreadsheetId();
+  const name = String(sheetName || '').trim();
+  const rowIndex = Number(row);
+  const colIndex = Number(col);
+  if (!name) throw new Error('Sheet tab name is required.');
+  if (!Number.isInteger(rowIndex) || rowIndex < 0) throw new Error('Invalid row.');
+  if (!Number.isInteger(colIndex) || colIndex < 0) throw new Error('Invalid column.');
+
+  const sheetsApi = await getSheetsClient();
+  const a1 = `${quoteSheetName(name)}!${cellA1(rowIndex, colIndex)}`;
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: a1,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values: [[value == null ? '' : String(value)]]
+    }
+  });
+
+  clearCache();
+  return {
+    success: true,
+    sheetName: name,
+    row: rowIndex,
+    col: colIndex,
+    a1: cellA1(rowIndex, colIndex),
+    value: value == null ? '' : String(value)
+  };
 }
 
 function mapRows(values) {
@@ -197,5 +359,9 @@ module.exports = {
   saveServiceAccountJson,
   testConnection,
   clearCache,
+  listTabs,
+  getSheetGrid,
+  updateSheetCell,
+  friendlySheetsError,
   REQUIRED_COLUMNS
 };
