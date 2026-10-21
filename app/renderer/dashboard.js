@@ -7,7 +7,18 @@ let isSubmitting = false;
 let customStartPicker = null;
 let keywords = [];
 let dragKeywordIndex = null;
+let dashboardViewMode = 'last';
 const MAX_KEYWORDS = 5;
+const PROCESS_STEPS = [
+  { label: 'Starting', hint: 'Starting automation', match: ['starting automation'] },
+  { label: 'Articles', hint: 'Generating articles', match: ['generating articles'] },
+  { label: 'Images', hint: 'Generating images', match: ['generating images'] },
+  { label: 'Details', hint: 'Filling article details', match: ['filling article details'] },
+  { label: 'Posting', hint: 'Posting articles', match: ['posting articles'] },
+  { label: 'Image URLs', hint: 'Filling rows for image urls', match: ['filling rows for image urls', 'image urls'] },
+  { label: 'Socials', hint: 'Posting socials', match: ['posting socials'] },
+  { label: 'Complete', hint: 'All workflow completed', match: ['all workflow completed', 'all workflow comple', 'workflow completed'] }
+];
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const btnSubmit = document.getElementById('btn-submit');
@@ -49,6 +60,14 @@ const responseErrorWrap = document.getElementById('response-error-wrap');
 const responseError = document.getElementById('response-error');
 const sheetPollHint = document.getElementById('sheet-poll-hint');
 const btnCopyResponseId = document.getElementById('btn-copy-response-id');
+const statusCardTitle = document.getElementById('status-card-title');
+const sheetStatusTitle = document.getElementById('sheet-status-title');
+const timelineTitle = document.getElementById('timeline-title');
+const timelineModeBadge = document.getElementById('timeline-mode-badge');
+const timelineHint = document.getElementById('timeline-hint');
+const progressTimeline = document.getElementById('progress-timeline');
+const timelineEmpty = document.getElementById('timeline-empty');
+const sheetStatusNote = document.getElementById('sheet-status-note');
 
 const modalExpand = document.getElementById('modal-expand');
 const modalOutputContent = document.getElementById('modal-output-content');
@@ -57,6 +76,7 @@ const btnCloseModal = document.getElementById('btn-close-modal');
 let sheetPollTimer = null;
 let sheetPollIntervalMs = 300;
 let sheetPolling = false;
+let timelineAnimTimers = [];
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
 customStartPicker = flatpickr('#field-article-start-date', {
@@ -539,6 +559,13 @@ function formatPreviewDate(date) {
   });
 }
 
+function formatSheetDateTime(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '—';
+  const parsed = parseLocalDateTime(raw);
+  return parsed ? formatPreviewDate(parsed) : raw;
+}
+
 function updateSchedulePreview() {
   if (!schedulePreview || !schedulePreviewList) return;
 
@@ -615,8 +642,10 @@ btnSubmit.addEventListener('click', async () => {
     });
 
     currentRequestId = result.request_id;
+    setDashboardMode('current');
     updateStatusPanel({ request_id: result.request_id, status: 'Pending' });
-    await startSheetPolling(result.request_id);
+    renderTimeline({ req_id: result.request_id, process: 'Starting automation', status: 'pending' });
+    await startSheetPolling(result.request_id, { mode: 'current' });
     showToast('success', 'Request submitted successfully');
   } catch (err) {
     showToast('error', 'Submission failed: ' + err.message);
@@ -634,6 +663,9 @@ function setSubmitting(state) {
 }
 
 renderKeywordChips();
+setDashboardMode('last');
+renderTimeline(null);
+loadLatestSheetRun();
 
 // ─── Status Panel ─────────────────────────────────────────────────────────────
 function updateStatusPanel(data) {
@@ -651,6 +683,266 @@ function updateStatusPanel(data) {
     statusErrorMsg.textContent = data.error_message;
   } else {
     statusErrorRow.classList.add('hidden');
+  }
+}
+
+// ─── Current / Last mode + timeline ──────────────────────────────────────────
+function setDashboardMode(mode) {
+  dashboardViewMode = mode === 'current' ? 'current' : 'last';
+  const isCurrent = dashboardViewMode === 'current';
+  if (statusCardTitle) statusCardTitle.textContent = isCurrent ? 'Current Status' : 'Last Status';
+  if (sheetStatusTitle) sheetStatusTitle.textContent = isCurrent ? 'Sheet Status' : 'Last Sheet Status';
+  if (timelineTitle) timelineTitle.textContent = isCurrent ? 'Current Progress' : 'Last Progress';
+  if (timelineModeBadge) {
+    timelineModeBadge.textContent = isCurrent ? 'Current' : 'Last';
+    timelineModeBadge.classList.toggle('is-current', isCurrent);
+  }
+  if (sheetStatusNote) {
+    sheetStatusNote.textContent = isCurrent
+      ? 'Live from Google Sheet · current run'
+      : 'From Google Sheet · last run';
+  }
+}
+
+function normalizeProcess(value) {
+  return String(value || '').toLowerCase().replace(/\.+/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function isRunFinished(status) {
+  const value = String(status || '').toLowerCase();
+  return ['finished', 'completed', 'done', 'success', 'ok'].includes(value);
+}
+
+function isRunError(status, error) {
+  const value = String(status || '').toLowerCase();
+  return ['error', 'failed', 'fail'].includes(value) || !!(error && String(error).trim());
+}
+
+function mapSheetStatusToBadge(status) {
+  const value = String(status || '').toLowerCase();
+  if (['success', 'ok', 'completed', 'done', 'finished'].includes(value)) return 'Completed';
+  if (['error', 'failed', 'fail'].includes(value)) return 'Error';
+  if (['pending', 'queued'].includes(value)) return 'Pending';
+  return 'Processing';
+}
+
+function resolveProcessStep(run) {
+  if (!run) return { index: -1, allDone: false, hasError: false };
+  const hasError = isRunError(run.status, run.error);
+  if (isRunFinished(run.status)) {
+    return { index: PROCESS_STEPS.length - 1, allDone: true, hasError: false };
+  }
+
+  const process = normalizeProcess(run.process);
+  let index = 0;
+  if (process) {
+    const found = PROCESS_STEPS.findIndex((step) =>
+      step.match.some((token) => process.includes(token))
+    );
+    if (found >= 0) index = found;
+  }
+  return { index, allDone: false, hasError };
+}
+
+function animationsAllowed() {
+  return !document.body.classList.contains('no-animations')
+    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function clearTimelineAnimTimers() {
+  timelineAnimTimers.forEach((id) => clearTimeout(id));
+  timelineAnimTimers = [];
+}
+
+function timelineStepState(i, { index, allDone, hasError, hasRun }) {
+  if (!hasRun) return 'is-upcoming';
+  if (allDone || (index >= 0 && i < index)) return 'is-done';
+  if (index >= 0 && i === index && hasError) return 'is-error';
+  if (index >= 0 && i === index) return 'is-current';
+  return 'is-upcoming';
+}
+
+function setTimelineStepState(el, state, { extra = [], force = false } = {}) {
+  const prev = el.dataset.state || 'is-upcoming';
+  if (!force && prev === state && extra.length === 0) return prev;
+  el.classList.remove(
+    'is-upcoming', 'is-done', 'is-current', 'is-error',
+    'just-done', 'just-current', 'just-complete', 'is-revealing'
+  );
+  el.classList.add(state, ...extra);
+  el.dataset.state = state;
+  if (state === 'is-current') el.setAttribute('aria-current', 'step');
+  else el.removeAttribute('aria-current');
+  return prev;
+}
+
+function ensureTimelineDom() {
+  if (!progressTimeline || progressTimeline.dataset.built === '1') return;
+  progressTimeline.innerHTML = PROCESS_STEPS.map((step, i) => `
+    <div class="progress-step is-upcoming" data-index="${i}" data-state="is-upcoming" title="${escapeHtml(step.hint)}">
+      <span class="progress-node">
+        <span class="progress-node-glow"></span>
+        <span class="progress-node-ring"></span>
+        <svg class="progress-mark progress-check" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.2 8.4 L6.6 11.6 L12.8 4.6"></path>
+        </svg>
+        <svg class="progress-mark progress-x" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 4 L12 12"></path>
+          <path d="M12 4 L4 12"></path>
+        </svg>
+      </span>
+      <span class="progress-connector" aria-hidden="true">
+        <span class="progress-connector-fill"></span>
+        <span class="progress-connector-spark"></span>
+      </span>
+      <span class="progress-label">${escapeHtml(step.label)}</span>
+    </div>
+  `).join('');
+  progressTimeline.dataset.built = '1';
+  progressTimeline.addEventListener('animationend', (event) => {
+    const step = event.target.closest?.('.progress-step');
+    if (!step) return;
+    if (event.animationName === 'spark-travel' || (event.animationName === 'node-complete' && !step.nextElementSibling)) {
+      step.classList.remove('just-done');
+    }
+    if (event.animationName === 'node-activate' || event.animationName === 'error-shake') {
+      step.classList.remove('just-current');
+    }
+    if (event.animationName === 'complete-burst') {
+      step.classList.remove('just-complete');
+    }
+  });
+}
+
+function updateTimelineChrome(run) {
+  if (!run) {
+    timelineEmpty?.classList.remove('hidden');
+    if (timelineHint) timelineHint.textContent = 'No run loaded yet.';
+    return;
+  }
+  timelineEmpty?.classList.add('hidden');
+  if (timelineHint) {
+    timelineHint.textContent = run.process || run.status || run.req_id || '';
+  }
+}
+
+function renderTimeline(run) {
+  if (!progressTimeline) return;
+  ensureTimelineDom();
+  const resolved = resolveProcessStep(run);
+  const reqId = run?.req_id || '';
+  const signature = `${reqId}|${resolved.index}|${resolved.allDone}|${resolved.hasError}|${run ? 1 : 0}`;
+  updateTimelineChrome(run);
+  if (signature === progressTimeline.dataset.sig) return;
+
+  const prevIndex = progressTimeline.dataset.index === undefined || progressTimeline.dataset.index === ''
+    ? -1
+    : Number(progressTimeline.dataset.index);
+  const prevReqId = progressTimeline.dataset.reqId || '';
+  const prevAllDone = progressTimeline.dataset.allDone === '1';
+  const hadRun = progressTimeline.dataset.hasRun === '1';
+
+  progressTimeline.dataset.sig = signature;
+  progressTimeline.dataset.reqId = reqId;
+  progressTimeline.dataset.index = String(resolved.index);
+  progressTimeline.dataset.allDone = resolved.allDone ? '1' : '0';
+  progressTimeline.dataset.hasRun = run ? '1' : '0';
+
+  const steps = [...progressTimeline.querySelectorAll('.progress-step')];
+  const animate = animationsAllowed();
+  const isNewRun = !!(run && reqId && reqId !== prevReqId);
+  const firstPaint = !!(run && !hadRun);
+  const advanced = !!(run && !isNewRun && hadRun && resolved.index > prevIndex);
+  const cascade = animate && run && (isNewRun || firstPaint || (advanced && resolved.index - prevIndex > 1));
+  const targetStates = steps.map((_, i) => timelineStepState(i, { ...resolved, hasRun: !!run }));
+
+  clearTimelineAnimTimers();
+
+  if (!run || !animate) {
+    steps.forEach((el, i) => setTimelineStepState(el, targetStates[i], { force: true }));
+    return;
+  }
+
+  if (cascade) {
+    steps.forEach((el) => setTimelineStepState(el, 'is-upcoming', { force: true }));
+    targetStates.forEach((state, i) => {
+      if (state === 'is-upcoming') return;
+      const extra = [];
+      if (state === 'is-done') extra.push('just-done');
+      if (state === 'is-current' || state === 'is-error') extra.push('just-current');
+      if (resolved.allDone && i === steps.length - 1) extra.push('just-complete');
+      const timer = setTimeout(() => {
+        setTimelineStepState(steps[i], state, { extra, force: true });
+      }, i * 120);
+      timelineAnimTimers.push(timer);
+    });
+    return;
+  }
+
+  if (advanced) {
+    steps.forEach((el, i) => {
+      const state = targetStates[i];
+      if (state === 'is-done' && i >= prevIndex && i < resolved.index) {
+        setTimelineStepState(el, 'is-done', { extra: ['just-done'] });
+      } else if (state === 'is-current' || state === 'is-error') {
+        const timer = setTimeout(() => {
+          setTimelineStepState(el, state, { extra: ['just-current'] });
+        }, 480);
+        timelineAnimTimers.push(timer);
+      } else if (el.dataset.state !== state) {
+        setTimelineStepState(el, state);
+      }
+    });
+    if (resolved.allDone && !prevAllDone) {
+      const last = steps[steps.length - 1];
+      const timer = setTimeout(() => last.classList.add('just-complete'), 480);
+      timelineAnimTimers.push(timer);
+    }
+    return;
+  }
+
+  steps.forEach((el, i) => {
+    const state = targetStates[i];
+    const extra = [];
+    if (state === 'is-error' && el.dataset.state !== 'is-error') extra.push('just-current');
+    if (resolved.allDone && !prevAllDone && i === steps.length - 1) extra.push('just-complete');
+    setTimelineStepState(el, state, extra.length ? { extra } : {});
+  });
+}
+
+async function loadLatestSheetRun() {
+  setDashboardMode('last');
+  renderTimeline(null);
+  try {
+    const result = await window.api.sheetsGetLatest({ limit: 1, force: true });
+    if (dashboardViewMode === 'current') return;
+    if (!result.success) {
+      if (timelineHint) timelineHint.textContent = result.message || 'Could not load last run.';
+      if (sheetPollHint) sheetPollHint.textContent = 'No last run';
+      return;
+    }
+    const run = result.runs?.[0];
+    if (!run) {
+      if (timelineHint) timelineHint.textContent = 'No previous run found.';
+      if (sheetPollHint) sheetPollHint.textContent = 'No last run';
+      return;
+    }
+
+    currentRequestId = run.req_id;
+    updateStatusPanel({
+      request_id: run.req_id,
+      status: mapSheetStatusToBadge(run.status),
+      error_message: run.error || ''
+    });
+    showSheetStatus(run);
+
+    if (!isRunFinished(run.status) && !isRunError(run.status, run.error)) {
+      await startSheetPolling(run.req_id, { mode: 'last' });
+    } else if (sheetPollHint) {
+      sheetPollHint.textContent = 'Last completed run';
+    }
+  } catch (err) {
+    if (timelineHint) timelineHint.textContent = err.message || 'Could not load last run.';
   }
 }
 
@@ -681,8 +973,20 @@ function showSheetStatus(run) {
   }
   if (responseProcess) responseProcess.textContent = run?.process ? `Process: ${run.process}` : '';
   if (responseRequestId) responseRequestId.textContent = run?.req_id || currentRequestId || '—';
-  if (responseScheduleDate) responseScheduleDate.textContent = run?.schedule_date || '—';
-  if (responseCreatedAt) responseCreatedAt.textContent = run?.created_at || '—';
+  if (responseScheduleDate) {
+    responseScheduleDate.textContent = formatSheetDateTime(run?.schedule_date);
+    responseScheduleDate.title = run?.schedule_date || '';
+  }
+  if (responseCreatedAt) {
+    responseCreatedAt.textContent = formatSheetDateTime(run?.created_at);
+    responseCreatedAt.title = run?.created_at || '';
+  }
+
+  updateStatusPanel({
+    request_id: run?.req_id || currentRequestId || '',
+    status: mapSheetStatusToBadge(run?.status),
+    error_message: run?.error || ''
+  });
 
   if (run?.error) {
     responseErrorWrap?.classList.remove('hidden');
@@ -690,6 +994,8 @@ function showSheetStatus(run) {
   } else {
     responseErrorWrap?.classList.add('hidden');
   }
+
+  renderTimeline(run);
 }
 
 function showSheetWaiting(message) {
@@ -733,11 +1039,19 @@ async function pollActiveSheetStatus({ force = false } = {}) {
 
     if (!result.run) {
       if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
-      showSheetWaiting('Request submitted. Waiting for sheet row…');
+      showSheetWaiting(
+        dashboardViewMode === 'current'
+          ? 'Request submitted. Waiting for sheet row…'
+          : 'Waiting for the last run to appear in Google Sheet…'
+      );
       return;
     }
 
-    if (sheetPollHint) sheetPollHint.textContent = `Live · every ${sheetPollIntervalMs}ms`;
+    if (sheetPollHint) {
+      sheetPollHint.textContent = dashboardViewMode === 'current'
+        ? `Live · every ${sheetPollIntervalMs}ms`
+        : `Last run · every ${sheetPollIntervalMs}ms`;
+    }
     showSheetStatus(result.run);
   } finally {
     sheetPolling = false;
@@ -751,9 +1065,10 @@ function stopSheetPolling() {
   }
 }
 
-async function startSheetPolling(requestId) {
+async function startSheetPolling(requestId, { mode = 'current' } = {}) {
   stopSheetPolling();
   currentRequestId = requestId;
+  setDashboardMode(mode);
   await refreshSheetPollInterval();
   showOutputSkeleton();
   if (sheetPollHint) sheetPollHint.textContent = `Polling every ${sheetPollIntervalMs}ms`;
