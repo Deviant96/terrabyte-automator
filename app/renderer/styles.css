@@ -1,6 +1,45 @@
 /* ─── Base ──────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
+/* ─── Ambient Waves ─────────────────────────────────────────────────────── */
+.bg-waves {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 46%;
+  min-height: 180px;
+  color: #6366f1;
+}
+.bg-wave-1 {
+  bottom: -10%;
+  opacity: 0.16;
+  animation: wave-drift 32s linear infinite;
+}
+.bg-wave-2 {
+  bottom: -4%;
+  opacity: 0.11;
+  animation: wave-drift 44s linear infinite reverse;
+}
+.bg-wave-3 {
+  bottom: 6%;
+  opacity: 0.07;
+  animation: wave-drift 56s linear infinite;
+}
+@keyframes wave-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bg-wave { animation: none !important; }
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2a3344; border-radius: 3px; }
@@ -992,6 +1031,10 @@ body.light-mode {
   background: #f5f7fb !important;
   color: #0f172a !important;
 }
+body.light-mode .bg-wave { color: #6366f1; }
+body.light-mode .bg-wave-1 { opacity: 0.10; }
+body.light-mode .bg-wave-2 { opacity: 0.07; }
+body.light-mode .bg-wave-3 { opacity: 0.05; }
 body.light-mode .bg-surface { background: #f5f7fb !important; }
 body.light-mode .bg-panel { background: #e9eef7 !important; }
 body.light-mode .bg-card,

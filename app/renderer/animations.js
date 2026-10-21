@@ -47,8 +47,8 @@ document.addEventListener('keydown', (e) => {
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
 (async () => {
-  // Check if webhook is configured on startup
   const cfg = await window.api.configGet();
+  if (typeof applyInterfaceSettings === 'function') applyInterfaceSettings(cfg);
   if (!cfg.webhook_url) {
     setTimeout(() => {
       showToast('warning', 'Webhook URL not configured. Visit Settings.');
