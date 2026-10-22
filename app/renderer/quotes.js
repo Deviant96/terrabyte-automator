@@ -313,13 +313,15 @@ const APP_QUOTES = [
 
 const QUOTE_LAST_KEY = 'terrabyte.quote.lastIndex';
 const QUOTE_USED_KEY = 'terrabyte.quote.used';
+const QUOTE_INTERVAL_MS = 10000;
+const QUOTE_RING_CIRCUMFERENCE = 56.55;
 
 function normalizeQuote(entry) {
   if (typeof entry === 'string') return { text: entry, author: '' };
   return { text: String(entry.text || ''), author: String(entry.author || '') };
 }
 
-function pickLaunchQuote() {
+function pickNextQuote() {
   const total = APP_QUOTES.length;
   if (!total) return { text: '', author: '' };
 
@@ -351,30 +353,89 @@ function pickLaunchQuote() {
   return normalizeQuote(APP_QUOTES[index]);
 }
 
-function renderLaunchQuote() {
+function applyQuote(quote) {
   const quoteEl = document.getElementById('app-quote');
   const textEl = document.getElementById('app-quote-text');
   const authorEl = document.getElementById('app-quote-author');
-  if (!quoteEl || !textEl) return;
-
-  const quote = pickLaunchQuote();
+  if (!quoteEl || !textEl) return false;
   if (!quote.text) {
     quoteEl.classList.add('hidden');
-    return;
+    return false;
   }
 
-  textEl.textContent = quote.text;
-  if (authorEl) {
-    if (quote.author) {
-      authorEl.textContent = quote.author;
-      authorEl.classList.remove('hidden');
-    } else {
-      authorEl.textContent = '';
-      authorEl.classList.add('hidden');
+  const swap = !quoteEl.classList.contains('hidden');
+  const reduceMotion = document.body.classList.contains('no-animations')
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (swap && !reduceMotion) quoteEl.classList.add('is-swap');
+
+  const paint = () => {
+    textEl.textContent = quote.text;
+    quoteEl.title = quote.author ? `${quote.text} — ${quote.author}` : quote.text;
+    if (authorEl) {
+      if (quote.author) {
+        authorEl.textContent = quote.author;
+        authorEl.classList.remove('hidden');
+      } else {
+        authorEl.textContent = '';
+        authorEl.classList.add('hidden');
+      }
     }
-  }
-  quoteEl.classList.remove('hidden');
-  quoteEl.setAttribute('title', `${APP_QUOTES.length} quotes in rotation`);
+    quoteEl.classList.remove('hidden', 'is-swap');
+  };
+
+  if (swap && !reduceMotion) setTimeout(paint, 160);
+  else paint();
+  return true;
 }
 
-renderLaunchQuote();
+function setQuoteProgress(remaining) {
+  const progressEl = document.getElementById('app-quote-progress');
+  const ringEl = document.getElementById('app-quote-timer-fill');
+  const value = Math.max(0, Math.min(1, remaining));
+  if (progressEl) progressEl.style.transform = `scaleX(${value})`;
+  if (ringEl) {
+    ringEl.style.strokeDasharray = String(QUOTE_RING_CIRCUMFERENCE);
+    ringEl.style.strokeDashoffset = String(QUOTE_RING_CIRCUMFERENCE * (1 - value));
+  }
+}
+
+function startQuoteRotation() {
+  const quoteEl = document.getElementById('app-quote');
+  if (!quoteEl || !applyQuote(pickNextQuote())) return;
+
+  let startedAt = performance.now();
+  let pausedAt = 0;
+  let raf = 0;
+
+  const tick = (now) => {
+    if (pausedAt) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+    const elapsed = now - startedAt;
+    setQuoteProgress(1 - elapsed / QUOTE_INTERVAL_MS);
+    if (elapsed >= QUOTE_INTERVAL_MS) {
+      applyQuote(pickNextQuote());
+      startedAt = now;
+      setQuoteProgress(1);
+    }
+    raf = requestAnimationFrame(tick);
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      pausedAt = performance.now();
+      return;
+    }
+    if (pausedAt) {
+      startedAt += performance.now() - pausedAt;
+      pausedAt = 0;
+    }
+  });
+
+  setQuoteProgress(1);
+  raf = requestAnimationFrame(tick);
+  window.addEventListener('beforeunload', () => cancelAnimationFrame(raf), { once: true });
+}
+
+startQuoteRotation();

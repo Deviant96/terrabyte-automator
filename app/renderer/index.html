@@ -110,10 +110,6 @@
           <div class="mb-2">
             <h1 class="text-2xl font-bold text-white">Dashboard</h1>
             <p class="text-muted text-sm mt-1">Submit AI marketing requests and track their status.</p>
-            <blockquote id="app-quote" class="app-quote hidden">
-              <p id="app-quote-text"></p>
-              <footer id="app-quote-author" class="app-quote-author hidden"></footer>
-            </blockquote>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -638,6 +634,18 @@
 
     </main>
   </div>
+
+  <footer id="app-quote" class="app-quote hidden" aria-live="polite">
+    <span class="app-quote-progress" id="app-quote-progress"></span>
+    <svg class="app-quote-timer" viewBox="0 0 28 28" aria-hidden="true">
+      <circle class="app-quote-timer-track" cx="14" cy="14" r="9" fill="none"></circle>
+      <circle id="app-quote-timer-fill" class="app-quote-timer-fill" cx="14" cy="14" r="9" fill="none" transform="rotate(-90 14 14)"></circle>
+    </svg>
+    <small class="app-quote-copy">
+      <span id="app-quote-text"></span>
+      <cite id="app-quote-author" class="app-quote-author hidden"></cite>
+    </small>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="quotes.js"></script>
