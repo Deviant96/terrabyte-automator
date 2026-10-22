@@ -6,6 +6,7 @@ let currentRequestId = null;
 let isSubmitting = false;
 let customStartPicker = null;
 let keywords = [];
+let lastKeywordCount = 0;
 let dragKeywordIndex = null;
 let dashboardViewMode = 'last';
 const MAX_KEYWORDS = 5;
@@ -77,6 +78,13 @@ let sheetPollTimer = null;
 let sheetPollIntervalMs = 300;
 let sheetPolling = false;
 let timelineAnimTimers = [];
+
+function replayAnim(el, className) {
+  if (!el || document.body.classList.contains('no-animations')) return;
+  el.classList.remove(className);
+  void el.offsetWidth;
+  el.classList.add(className);
+}
 
 // ─── Flatpickr datetime picker ───────────────────────────────────────────────
 customStartPicker = flatpickr('#field-article-start-date', {
@@ -175,11 +183,51 @@ function resolveScheduleStartDate(mode, rawInput) {
 }
 
 function updateScheduleModeUi(mode) {
+  const hasMode = mode === 'this_week' || mode === 'next_week' || mode === 'custom_start_date';
   const isCustom = mode === 'custom_start_date';
-  weekTimeWrap.classList.toggle('hidden', isCustom);
+  weekTimeWrap.classList.toggle('hidden', !hasMode || isCustom);
   customScheduleWrap.classList.toggle('hidden', !isCustom);
-  scheduleHint.textContent = scheduleHintsByMode[mode] || scheduleHintsByMode.this_week;
+  scheduleHint.textContent = hasMode
+    ? (scheduleHintsByMode[mode] || scheduleHintsByMode.this_week)
+    : 'Pick this week, next week, or a custom start.';
+  syncWeekModeTiles(mode);
+  syncWeekTimeFace();
   updateSchedulePreview();
+}
+
+function syncWeekModeTiles(mode) {
+  document.querySelectorAll('[data-week-mode]').forEach((btn) => {
+    const active = btn.dataset.weekMode === mode;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+}
+
+function syncWeekTimeFace() {
+  const face = document.querySelector('.launch-time-face');
+  const hoursEl = document.getElementById('week-time-hours');
+  const minutesEl = document.getElementById('week-time-minutes');
+  const parts = parseTimeParts(weekTimeField?.value || '');
+  if (hoursEl) hoursEl.textContent = parts ? String(parts.hours).padStart(2, '0') : '--';
+  if (minutesEl) minutesEl.textContent = parts ? String(parts.minutes).padStart(2, '0') : '--';
+  if (face) face.classList.toggle('is-empty', !parts);
+}
+
+function stepWeekTime(unit, dir) {
+  const current = parseTimeParts(weekTimeField?.value || '') || { hours: 9, minutes: 0 };
+  if (unit === 'hour') {
+    current.hours = (current.hours + dir + 24) % 24;
+  } else {
+    current.minutes = (current.minutes + dir + 60) % 60;
+  }
+  if (weekTimeField) {
+    weekTimeField.value = `${String(current.hours).padStart(2, '0')}:${String(current.minutes).padStart(2, '0')}`;
+    weekTimeField.dispatchEvent(new Event('input', { bubbles: true }));
+    weekTimeField.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  syncWeekTimeFace();
+  const digit = document.getElementById(unit === 'hour' ? 'week-time-hours' : 'week-time-minutes');
+  replayAnim(digit, dir > 0 ? 'is-flip-up' : 'is-flip-down');
 }
 
 function applyModeDefaultDate(mode) {
@@ -196,13 +244,32 @@ function applyModeDefaultDate(mode) {
 }
 
 scheduleModeField.addEventListener('change', () => {
-  const mode = scheduleModeField.value;
-  updateScheduleModeUi(mode);
-  applyModeDefaultDate(mode);
+  updateScheduleModeUi(scheduleModeField.value);
 });
 
-weekTimeField?.addEventListener('input', updateSchedulePreview);
-weekTimeField?.addEventListener('change', updateSchedulePreview);
+document.querySelectorAll('[data-week-mode]').forEach((btn) => {
+  btn.setAttribute('role', 'radio');
+  btn.addEventListener('click', () => {
+    scheduleModeField.value = btn.dataset.weekMode;
+    scheduleModeField.dispatchEvent(new Event('change', { bubbles: true }));
+    replayAnim(btn, 'is-picking');
+  });
+});
+
+document.querySelectorAll('.launch-time-step').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    stepWeekTime(btn.dataset.timeUnit, Number(btn.dataset.timeDir) || 1);
+  });
+});
+
+weekTimeField?.addEventListener('input', () => {
+  syncWeekTimeFace();
+  updateSchedulePreview();
+});
+weekTimeField?.addEventListener('change', () => {
+  syncWeekTimeFace();
+  updateSchedulePreview();
+});
 
 if (customStartPicker?.config?.onChange) {
   customStartPicker.config.onChange.push(() => {
@@ -212,26 +279,9 @@ if (customStartPicker?.config?.onChange) {
 }
 
 async function applyScheduleDefaults() {
-  const cfg = await window.api.configGet();
-  const defaultMode = cfg.default_article_schedule_week || 'this_week';
-  const defaultTimeValue = cfg.default_article_schedule_time || '';
-  const defaultCustomStart = cfg.default_article_custom_start_date || '';
-
-  scheduleModeField.value = defaultMode;
-  updateScheduleModeUi(defaultMode);
-
-  if (defaultMode === 'custom_start_date' && defaultCustomStart) {
-    const parsedDate = new Date(defaultCustomStart.replace(' ', 'T'));
-    if (!Number.isNaN(parsedDate.getTime())) {
-      if (customStartPicker) customStartPicker.setDate(parsedDate, true);
-    }
-  } else if (defaultTimeValue) {
-    if (weekTimeField) weekTimeField.value = defaultTimeValue;
-  }
-
-  if (!weekTimeField?.value && !defaultCustomStart) {
-    applyModeDefaultDate(defaultMode);
-  }
+  if (weekTimeField) weekTimeField.value = '';
+  if (customStartPicker) customStartPicker.clear();
+  updateScheduleModeUi(scheduleModeField?.value || '');
 }
 
 async function saveCurrentScheduleAsDefault() {
@@ -290,7 +340,13 @@ function parseKeywordChunks(raw) {
 }
 
 function updateKeywordMeta() {
-  if (keywordCountEl) keywordCountEl.textContent = `${keywords.length} / ${MAX_KEYWORDS}`;
+  if (keywordCountEl) {
+    const nextLabel = `${keywords.length} / ${MAX_KEYWORDS}`;
+    if (keywordCountEl.textContent !== nextLabel) {
+      keywordCountEl.textContent = nextLabel;
+      replayAnim(keywordCountEl, 'is-popping');
+    }
+  }
   if (keywordChipBox) keywordChipBox.classList.toggle('is-full', keywords.length >= MAX_KEYWORDS);
   if (keywordHintEl) {
     if (keywords.length === MAX_KEYWORDS) {
@@ -322,6 +378,8 @@ function renderKeywordChips() {
   keywords.forEach((keyword, index) => {
     const chip = document.createElement('div');
     chip.className = 'keyword-chip';
+    if (index >= lastKeywordCount) chip.classList.add('is-entering');
+    chip.style.setProperty('--slot', String(index));
     chip.draggable = true;
     chip.dataset.index = String(index);
     chip.innerHTML = `
@@ -380,6 +438,7 @@ function renderKeywordChips() {
     keywordChipsEl.appendChild(chip);
   });
 
+  lastKeywordCount = keywords.length;
   updateKeywordMeta();
 }
 
@@ -647,6 +706,7 @@ btnSubmit.addEventListener('click', async () => {
     renderTimeline({ req_id: result.request_id, process: 'Starting automation', status: 'pending' });
     await startSheetPolling(result.request_id, { mode: 'current' });
     showToast('success', 'Request submitted successfully');
+    replayAnim(document.querySelector('.launch-pad'), 'is-launched');
   } catch (err) {
     showToast('error', 'Submission failed: ' + err.message);
   } finally {
@@ -659,6 +719,7 @@ function setSubmitting(state) {
   isSubmitting = state;
   btnSubmitText.textContent = state ? 'Sending...' : 'Submit Request';
   btnSubmitSpinner.classList.toggle('hidden', !state);
+  btnSubmit.classList.toggle('is-firing', state);
   updateSubmitEnabled();
 }
 
