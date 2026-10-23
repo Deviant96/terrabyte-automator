@@ -427,6 +427,18 @@ document.getElementById('btn-clear-history').addEventListener('click', async () 
   if (typeof loadHistory === 'function') loadHistory();
 });
 
+document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.settingsTab;
+    document.querySelectorAll('[data-settings-tab]').forEach((item) => {
+      item.classList.toggle('is-active', item === btn);
+    });
+    document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
+      panel.classList.toggle('hidden', panel.dataset.settingsPanel !== tab);
+    });
+  });
+});
+
 window.loadSettings = loadSettings;
 
 // Apply interface preferences on app startup, even before opening Settings.

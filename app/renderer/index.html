@@ -424,16 +424,28 @@
       </section>
 
       <!-- Settings Screen -->
-      <section id="screen-settings" class="screen hidden h-full overflow-y-auto px-8 py-8">
-        <div class="max-w-3xl mx-auto space-y-8 animate-fadein">
-          <div>
-            <h1 class="text-2xl font-bold text-white">Settings</h1>
-            <p class="text-muted text-sm mt-1">Developer configuration. Click Save Settings to persist changes.</p>
-            <p id="settings-path-hint" class="text-xs text-muted mt-1 font-mono break-all"></p>
-          </div>
+      <section id="screen-settings" class="screen hidden h-full px-6 py-5">
+        <div class="settings-console animate-fadein">
+          <header class="settings-head">
+            <div>
+              <p class="launch-kicker">Systems</p>
+              <h1>Settings</h1>
+            </div>
+            <p id="settings-path-hint" class="settings-path"></p>
+          </header>
 
-          <!-- Webhook -->
-          <div class="card space-y-4">
+          <nav class="settings-tabs" aria-label="Settings sections">
+            <button type="button" class="settings-tab is-active" data-settings-tab="connect">Connections</button>
+            <button type="button" class="settings-tab" data-settings-tab="ai">AI</button>
+            <button type="button" class="settings-tab" data-settings-tab="social">Socials</button>
+            <button type="button" class="settings-tab" data-settings-tab="app">App</button>
+          </nav>
+
+          <div class="settings-body">
+
+          <section class="settings-panel" data-settings-panel="connect">
+          <div class="settings-split">
+          <div class="settings-tile">
             <h2 class="settings-section-title">Webhook</h2>
             <div>
               <label class="field-label">n8n Webhook URL<span class="hint-icon" data-hint="The full URL of your n8n webhook trigger node. Copy it from the 'Webhook' node in your n8n workflow editor.">?</span></label>
@@ -453,8 +465,7 @@
             </button>
           </div>
 
-          <!-- Google Sheets -->
-          <div class="card space-y-4">
+          <div class="settings-tile">
             <h2 class="settings-section-title">Google Sheets</h2>
             <p class="text-xs text-muted -mt-1">Used to poll live run status, the Runs menu, and the Sheets editor. Share the spreadsheet with your service account email as Editor.</p>
             <div>
@@ -480,9 +491,11 @@
             </div>
             <button type="button" id="btn-test-sheets" class="btn-ghost text-sm">Test Sheets Connection</button>
           </div>
+          </div>
+          </section>
 
-          <!-- AI -->
-          <div class="card space-y-4">
+          <section class="settings-panel hidden" data-settings-panel="ai">
+          <div class="settings-tile">
             <h2 class="settings-section-title">AI Settings</h2>
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -520,9 +533,10 @@
               </div>
             </div>
           </div>
+          </section>
 
-          <!-- Social Accounts / Token Management -->
-          <div class="card space-y-4">
+          <section class="settings-panel hidden" data-settings-panel="social">
+          <div class="settings-tile">
             <div class="flex items-center justify-between gap-3">
               <h2 class="settings-section-title mb-0 border-0 pb-0">Social Accounts</h2>
               <button type="button" id="btn-add-social-account" class="btn-ghost text-xs">
@@ -594,9 +608,11 @@
               <button type="button" id="btn-save-social-account" class="btn-primary w-full sm:w-auto">Save Account</button>
             </div>
           </div>
+          </section>
 
-          <!-- UI -->
-          <div class="card space-y-4">
+          <section class="settings-panel hidden" data-settings-panel="app">
+          <div class="settings-split settings-split-app">
+          <div class="settings-tile">
             <h2 class="settings-section-title">Interface</h2>
             <div class="space-y-3">
               <div class="settings-toggle-row">
@@ -623,8 +639,7 @@
             </div>
           </div>
 
-          <!-- Database -->
-          <div class="card space-y-4">
+          <div class="settings-tile">
             <h2 class="settings-section-title">Database</h2>
             <div class="flex gap-3">
               <button id="btn-export-db" class="btn-ghost text-sm">Export Logs</button>
@@ -632,8 +647,7 @@
             </div>
           </div>
 
-          <!-- Debug -->
-          <div class="card space-y-4">
+          <div class="settings-tile">
             <h2 class="settings-section-title">Debug</h2>
             <div class="space-y-3">
               <div class="settings-toggle-row">
@@ -652,8 +666,15 @@
               </div>
             </div>
           </div>
+          </div>
+          </section>
 
-          <button id="btn-save-settings" class="btn-primary w-full">Save Settings</button>
+          </div>
+
+          <div class="settings-foot">
+            <p class="settings-foot-hint">Changes stay local until you save.</p>
+            <button id="btn-save-settings" class="btn-primary launch-fire settings-save">Save Settings</button>
+          </div>
         </div>
       </section>
 
